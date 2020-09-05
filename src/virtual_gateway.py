@@ -8,8 +8,12 @@ import json
 import datetime as dt
 import socket
 import threading
+import logging
 import time
+import copy
+
 from queue import SimpleQueue, Full, Empty
+
 if __name__ == "__main__":
     from modify_rxpk import RXMetadataModification
     from messages import decode_message, encode_message, MsgPullData, MsgPushData, MsgPullResp
@@ -17,8 +21,9 @@ else:
     from .modify_rxpk import RXMetadataModification
     from .messages import decode_message, encode_message, MsgPullData, MsgPushData, MsgPullResp
 
+
 class VirtualGateway:
-    def __init__(self, mac, socket, server_address, port_up, port_dn):
+    def __init__(self, mac, socket, server_address, port_up, port_dn, logger):
         """
 
         :param mac:
@@ -33,7 +38,7 @@ class VirtualGateway:
         self.port_dn = port_dn
         self.server_address = server_address
         self.socket = socket
-
+        self.logger = logger
 
         # counts number of received and transmitted packets for stats
         self.rxnb = 0
@@ -42,13 +47,10 @@ class VirtualGateway:
         # stores unique id of recently received packets to avoid repeats
         self.rx_cache = dict()
 
-        # ticker offset between real gateway with same MAC and utc timestamp
-        self.tmst_offset = 0
-
         # payload modifier
         self.rxmodifier = RXMetadataModification()
 
-    def __send_stat__(self):
+    def send_stat(self):
         payload = dict(
             stat=dict(
                 time=dt.datetime.utcnow().isoformat()[:19] + " GMT",
@@ -71,13 +73,22 @@ class VirtualGateway:
                 self.rx_cache.pop(key)
 
         # next iterate through each received packet to see if it is a repeat from chached
-        for rx in rxpks:
+        for rx in rxpks['data'].get('rxpk', []):
             key = (rx['datr'], rx['codr'], str(round(rx['freq'], 2)), rx['data'])
+
             if key in self.rx_cache:
+                self.logger.debug(f"(vgw:{self.mac[-8:]}) got repeated message {key} first seen {time.time() - self.rx_cache[key]:.3f}s ago, dropping")
                 continue
             self.rx_cache[key] = time.time()
+            self.logger.debug(f"(vgw:{self.mac[-8:]}) new rxpk signal: {rx['rssi']}/{rx['lsnr']} info:{key}")
+
             # modify metadata as needed
-            new_rxpks.append(self.rxmodifier.modify_rxpk(rx))
+            orig_rssi, orig_snr, orig_ts = rx['rssi'], rx['lsnr'], rx['tmst']
+            modified_rx = self.rxmodifier.modify_rxpk(rx, src_mac=rxpks['MAC'], dest_mac=self.mac)
+
+            # add rx payload to array to be sent to miner
+            self.logger.debug(f"(vgw:{self.mac[-8:]}) new rxpk signal: ({orig_rssi}/{orig_snr}->{rx['rssi']}/{rx['lsnr']}) info:{key}, tmst:{modified_rx['tmst']}")
+            new_rxpks.append(modified_rx)
 
         if not new_rxpks:
             return
@@ -94,7 +105,7 @@ class VirtualGateway:
         :param payload: raw payload
         :return:
         """
-        payload = dict(
+        top = dict(
             _NAME_=MsgPushData.NAME,
             identifier=MsgPushData.IDENT,
             ver=2,
@@ -102,8 +113,9 @@ class VirtualGateway:
             MAC=self.mac,
             data=payload
         )
-        payload_raw = encode_message(payload)
+        payload_raw = encode_message(top)
         self.socket.sendto(payload_raw, (self.server_address, self.port_up))
+        self.logger.debug(f"(vgw:{self.mac[-8:]}) sending PUSH_DATA {list(payload.keys())} to miner {(self.server_address, self.port_up)}")
 
     def send_PULL_DATA(self):
         payload = dict(
@@ -140,29 +152,25 @@ class VirtualGateway:
     }
 """
 
-def miner_handle_push(rx_queue, vgateways):
+def vgateway_handle_push(rx_queue, vgateways):
     """
 
     :param rx_queue:
     :type rx_queue: SimpleQueue
     :param vgateways:
+    :param logger:
     :return:
     """
-
-    # make dictionary to quickly lookup VGW object by ip, port
-    gateway_by_addr = dict()
-    for vgw in vgateways:
-        # gateway_by_addr[(vgw.server_address, vgw.port_up)] = vgw
-        gateway_by_addr[(vgw.server_address, vgw.port_dn)] = vgw
 
     while True:
         # wait until packet received from a gateway
         rxpacket = rx_queue.get()
         # send received packet to all virtual gateways
         for vgw in vgateways:
-            vgw.send_rxpks(rxpacket)
+            # need to copy as each vgateway is allowed to modify metadata before forwarding
+            vgw.send_rxpks(copy.deepcopy(rxpacket))
 
-def miner_handle_pull(boundsocket, tx_queue, vgateways, keepalive=10):
+def vgateway_handle_pull(boundsocket, tx_queue, vgateways, keepalive=10, stat_keepalive_mult=6, logger=None):
     """
     This function should run in a thread and will never return.
     It performs two functions:
@@ -175,8 +183,13 @@ def miner_handle_pull(boundsocket, tx_queue, vgateways, keepalive=10):
     :param tx_queue:
     :type tx_queue: SimpleQueue
     :param vgateways: list of virtual gateway object
+    :param keepalive: interval in seconds to send PULL_DATA to keep udp port open for transmits
+    :param stat_keepalive_mult: send stat messages at specified multiple of keepalive
     :return:
     """
+    if not isinstance(logger, logging.Logger):
+        logger = logging.getLogger('abc')
+        logger.setLevel(logging.ERROR)
 
     # make dictionary to quickly lookup VGW object by ip, port
     gateway_by_addr = dict()
@@ -185,27 +198,44 @@ def miner_handle_pull(boundsocket, tx_queue, vgateways, keepalive=10):
         gateway_by_addr[(vgw.server_address, vgw.port_dn)] = vgw
 
     last_pull_data = 0
+    pulls_since_stat = 0
     while True:
         # first regularly send keep-alive pull_datas to inform miners of gateway presence
         timeout = keepalive - (time.time() - last_pull_data)
-        if timeout < 0:
+        if timeout < 0.050:
             for vgw in vgateways:
                 vgw.send_PULL_DATA()
             last_pull_data = time.time()
+            pulls_since_stat += 1
+            # send stat messages per interval
+            if stat_keepalive_mult is not None and pulls_since_stat >= stat_keepalive_mult:
+                logger.info(f"triggering stat messages from {len(vgateways)} virtual gateways")
+                for vgw in vgateways:
+                    vgw.send_stat()
+                pulls_since_stat = 0
             continue
         # second if we dont need to send keep-alives, see if we need to transmit data from miners
-        boundsocket.settimeout(max(0, keepalive - (time.time() - last_pull_data)))
+        boundsocket.settimeout(timeout)
         try:
             data, addr = boundsocket.recvfrom(1024)
-        except socket.timeout as e:
-            data = None
-            addr = None
+        except (socket.timeout, BlockingIOError) as e:
+            # if recv timed out, no new data but time to send PULL_DATA or stat message
+            continue
+
+        except ConnectionResetError as e:
+            # from https://stackoverflow.com/questions/15228272/what-would-cause-a-connectionreset-on-an-udp-socket
+            # indicates a previous send operation resulted in an ICMP Port Unreachable message.
+            # I am ok suppressing these errors
+            continue
+
 
         # check that sender address is known and message is response data
-
         if addr not in gateway_by_addr: # unrecognized origin, skip
+            if addr:
+                logger.warning(f"received packet from unknown origin {addr}, dropping")
             continue
         try:
+            logger.debug(f"received from addr:{addr}, data:{data}")
             msg = decode_message(data)
         except ValueError as e:
             continue
@@ -215,54 +245,84 @@ def miner_handle_pull(boundsocket, tx_queue, vgateways, keepalive=10):
                 vgw = gateway_by_addr[addr]
                 tx_queue.put_nowait(('tx', (vgw.mac, msg)))
             except Full:
+                logger.error(f"could not put new tx message on full queue (len:{tx_queue.qsize()})")
                 continue
+            finally:
+                logger.debug(f"received tx command for gateway {vgw.mac[-8:]} from miner at {addr}, queue size:{tx_queue.qsize()}")
 
+        else:
+            pass
+            # this is an ACK or some other payload from the miner that we can drop silently
 
-def start_miners(vgateway_port, tx_queue, rx_queue, config_paths=[]):
+def start_virtual_gateways(vgateway_port, tx_queue, rx_queue, config_paths=[], debug=False):
     """
 
-    :param vgateway_port:
+    :param vgateway_port: socket port to bind to for interfacing with miners
     :param tx_queue: queue where transmit commands from miners should be put
     :param rx_queue: queue where payloads received from real gateways should be popped
-    :param config_paths: list of file paths to gateway configs maching semtechs config standards
+    :param config_paths: list of file paths to gateway configs matching semtechs config standards
         each should include gateway_ID, server_address, server_port_up, server_port_dn
-    :return:
+        Note ignores keepalive_interval and stat_interval this is set globally for all gateways
+    :return: never returns
     """
+
+    logger = logging.getLogger('VGW')
 
 
     # setup UDP port for interfacing with miners
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(("0.0.0.0", vgateway_port))
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        sock.bind(("0.0.0.0", vgateway_port))
+        logger.info(f"virtual gateways listening on port {vgateway_port}")
+        # configure gateway objects
+        vgateways = []
+        for path in config_paths:
+            with open(path, 'r') as fd:
+                config = json.load(fd)
+                if 'gateway_conf' in config:
+                    config = config['gateway_conf']
 
-    # configure gateway objects
-    vgateways = dict()
-    for path in config_paths:
-        with open(path, 'r') as fd:
-            config = json.load(fd)
-            if 'gateway_conf' in config:
-                config = config['gateway_conf']
+                mac = ''
+                if 'gateway_ID' not in config or 'server_address' not in config:
+                    logger.error(f"invalid config file {path}, missing required parameters")
+                    continue
+                for i in range(0, len(config.get('gateway_ID')), 2):
+                    mac += config.get('gateway_ID')[i:i+2] + ':'
+                mac = mac[:-1].upper()
+                vgateways.append(
+                    VirtualGateway(
+                        mac=mac,
+                        socket=sock,
+                        server_address=config.get('server_address'),
+                        port_dn=config.get('serv_port_down'),
+                        port_up=config.get('serv_port_up'),
+                        logger=logger
+                    )
+                )
 
-            mac = ''
-            for i in range(0, len(config.get('gateway_ID')), 2):
-                mac += config.get('gateway_ID')[i:i+2] + ':'
-            mac = mac[:-1].upper()
-            vgateways[mac] = VirtualGateway(
-                mac=mac,
-                socket=sock,
-                server_address=config.get('server_address'),
-                port_dn=config.get('serv_port_down'),
-                port_up=config.get('serv_port_up')
-            )
+        # handle transmit commands from miners, send to gateways
+        # (boundsocket, tx_queue, vgateways, keepalive=10, stat_keepalive_mult=6, logger=None):
+        pull_thread = threading.Thread(target=vgateway_handle_pull, kwargs=dict(boundsocket=sock, tx_queue=tx_queue, vgateways=vgateways, logger=logger))
+        pull_thread.start()
+        logger.info(f"started virtual gateway transmit command thread")
+        time.sleep(0.1)
+        # handle received packets from gateways, forward to all miners
+        push_thread = threading.Thread(target=vgateway_handle_push, kwargs=dict(rx_queue=rx_queue, vgateways=vgateways))
+        push_thread.start()
+        logger.info(f"started virtual gateway LoRa receive packet thread for {len(vgateways)} virtual gateways")
 
-    # handle transmit commands from miners, send to gateways
-    pull_thread = threading.Thread(target=miner_handle_pull, args=(sock, tx_queue, vgateways))
-    pull_thread.start()
+        while push_thread.is_alive() and pull_thread.is_alive():
+            time.sleep(1)
+        logger.fatal(f"atleast one vgateway thread terminated, check logs and restart")
 
-    # handle received packets from gateways, forward to all miners
-    pull_thread = threading.Thread(target=miner_handle_push, args=(rx_queue, vgateways))
-    pull_thread.start()
+    # not sure this actually exists the thread if there are running children?
+    raise RuntimeError("at least one vgateway thread terminated, check logs and restart")
 
-    # start miner transmitter
+
+def start_virtual_gateways_thread(vgateway_port, tx_queue, rx_queue, config_paths=[], debug=False):
+    thread = threading.Thread(target=start_virtual_gateways, kwargs=dict(vgateway_port=vgateway_port, tx_queue=tx_queue, rx_queue=rx_queue, config_paths=config_paths, debug=debug))
+    thread.start()
+    return thread
+
 
 
 def main():
@@ -270,7 +330,7 @@ def main():
     tx_queue = SimpleQueue()
     rx_queue = SimpleQueue()
     config_paths = []
-    start_miners(5000, tx_queue=tx_queue, rx_queue=rx_queue, config_paths=config_paths)
+    start_virtual_gateways(7001, tx_queue=tx_queue, rx_queue=rx_queue, config_paths=config_paths, debug=True)
 
 if __name__ == '__main__':
     main()

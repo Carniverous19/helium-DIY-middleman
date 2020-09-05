@@ -12,6 +12,7 @@ import socket
 from queue import SimpleQueue, Empty, Full
 import logging
 import threading
+import time
 
 import datetime as dt
 if __name__ == "__main__":
@@ -35,7 +36,7 @@ else:
         self.debug = debug
 """
 
-def listener(boundsocket=socket, rx_queue=None, tx_queue=None):
+def listen(boundsocket=socket, rx_queue=None, tx_queue=None, logger=None):
     """
 
     :param boundsocket:
@@ -54,7 +55,11 @@ def listener(boundsocket=socket, rx_queue=None, tx_queue=None):
             data, addr = boundsocket.recvfrom(1024)
             if not data:
                 continue
-            msg, ack = decode_message(data, return_ack=True)
+            try:
+                msg, ack = decode_message(data, return_ack=True)
+            except ValueError as e:
+                logger.warning(f"invalid message from ({addr}) '{data}' with exception {e}")
+                continue
 
             # send acknowledgement to original gateway if appropriate for this message type
             if ack:
@@ -65,32 +70,31 @@ def listener(boundsocket=socket, rx_queue=None, tx_queue=None):
                 payload = msg['data']
                 if 'stat' in payload:
                     # drop stat messages for now, not required
-                    logging.debug(f"RECV({loop_count:4}) - received stat message from gateway MAC:{msg['MAC']}")
+                    logger.debug(f"RECV({loop_count:4}) - received stat message from gateway MAC:{msg['MAC'][-8:]}")
                     pass
                 elif 'rxpk' in payload:
 
                     try:
                         rx_queue.put_nowait(msg)
-                        logging.debug(f"RECV({loop_count:4}) - received rxpk message from MAC:{msg['MAC']}, queue size: {rx_queue.qsize()}")
+                        logger.debug(f"RECV({loop_count:4}) - received rxpk message from MAC:{msg['MAC'][-8:]}, queue size: {rx_queue.qsize()}")
                     except Full as e:
-                        logging.error(f"RECV({loop_count:4}) - failed to put PUSH_DATA on queue from MAC:{msg['MAC']}, queue size: {rx_queue.qsize()}")
+                        logger.error(f"RECV({loop_count:4}) - failed to put PUSH_DATA on queue from MAC:{msg['MAC'][-8:]}, queue size: {rx_queue.qsize()}")
                         pass
 
             elif msg['_NAME_'] == 'PULL_DATA':
-                logging.debug(f"RECV({loop_count:4}) - received PULL_DATA from gateway MAC: {msg['MAC']}")
                 try:
                     tx_queue.put_nowait(
                         ('addr', {msg['MAC']: addr})
                     )
                 except Full as e:
-                    logging.error(f"RECV({loop_count:4}) - failed to put address for {msg['MAC']}")
+                    logger.error(f"RECV({loop_count:4}) - failed to put address for {msg['MAC'][-8:]}")
                     pass
             loop_count += 1
     except Exception as e:
-        logging.fatal(f"RECV({loop_count:4}) - listener.py exited, no longer forwarding packets to miner")
+        logger.fatal(f"RECV({loop_count:4}) - listener.py exited, no longer forwarding packets to miner")
         raise e
 
-def transmit(boundsocket, tx_queue):
+def transmit(boundsocket, tx_queue, logger):
     """
 
     :param boundsocket: UDP socket bound to port
@@ -99,7 +103,7 @@ def transmit(boundsocket, tx_queue):
     :type tx_queue: SimpleQueue
     """
     mac_addresses = dict()
-    logging.info(f"TRANS- starting transmitter thread")
+    logging.info(f"TRNS - starting transmitter thread")
     loop_count = 0
     try:
         while True:
@@ -108,30 +112,34 @@ def transmit(boundsocket, tx_queue):
                 # payload should be ("addr", dict(macaddr=(ip, port))
                 mac, addr = new_item[1].popitem()
                 if mac not in mac_addresses:
-                    logging.info(f"TRANS({loop_count:4})- new gateway with mac:{mac} at {addr}")
+                    logger.info(f"TRNS({loop_count:4}) - new gateway with mac:{mac} at {addr}")
                 elif mac_addresses[mac] != addr:
-                    logging.debug(f"TRANS({loop_count:4})- new address for mac:{mac}. from {mac_addresses[mac]} to {addr}")
+                    logger.debug(f"TRNS({loop_count:4}) - new address for mac:{mac}. from {mac_addresses[mac]} to {addr}")
                 mac_addresses[mac] = addr
             elif new_item[0] == 'tx':
                 # payload should be ("tx", dict(macaddr=payload))
-                mac, payload = new_item[1].popitem()
+                mac, payload = new_item[1]
                 if mac in mac_addresses:
                     # sends payload originating from listening port (so acks go to listener)
                     # sends to IP, port of last received PULL_DATA from this gateway mac address
-                    boundsocket.sendto(payload, mac_addresses[mac])
+                    try:
+                        raw_tx = encode_message(payload)
+                    except Exception as e:
+                        logger.error(f"failed to parse PULL_RESP for gw:{mac[-8:]}, payload:{payload}")
+                    boundsocket.sendto(raw_tx, mac_addresses[mac])
                     obj = payload['data']['txpk']
-                    logging.debug(f"TRANS({loop_count:4})- sending {obj.get('size')}byte payload for mac:{mac} on freq:{obj.get('freq'):.2f}, bw{obj.get('datr')}")
+                    logger.debug(f"TRNS({loop_count:4}) - sending {obj.get('size')} byte payload from mac:{mac[-8:]} on freq:{obj.get('freq'):.2f}, bw:{obj.get('datr')}")
                 else:
-                    logging.warning(f"TRANS({loop_count:4})- tx command for mac:{mac} without known address, dropping")
+                    logger.warning(f"TRNS({loop_count:4}) - tx command for mac:{mac} without known address, dropping")
                     # no known address for this mac
             loop_count += 1
     except Exception as e:
-        logging.fatal(f"TRANS({loop_count:4})- listener.py exited, no longer forwarding packets to miner")
+        logger.fatal(f"TRNS({loop_count:4}) - listener.py exited, no longer forwarding packets to miner")
         raise e
 
 
 
-def start_server(listening_port, rx_queue, tx_queue, logpath=None, debug=False):
+def start_server(listening_port, rx_queue, tx_queue):
     """
 
     :param listening_port: port real gateways should connect to for tx or rx data
@@ -141,23 +149,50 @@ def start_server(listening_port, rx_queue, tx_queue, logpath=None, debug=False):
     :return:
     """
 
-    logging.basicConfig(
-        filename=logpath,
-        format='%(asctime)s [%(levelname)8s] %(message)s',
-        datefmt='%Y/%m/%d %H:%M:%S',
-        level=logging.DEBUG if debug else logging.WARNING
-    )
 
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(("0.0.0.0", listening_port))
-    # start transmitter
-    transmit_thread = threading.Thread(target=transmit, args=(sock, tx_queue))
-    transmit_thread.start()
-    # start listener
-    listener_thread = threading.Thread(target=listener, args=(sock,rx_queue, tx_queue))
-    listener_thread.start()
+    logger = logging.getLogger('SRV')
+
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        sock.bind(("0.0.0.0", listening_port))
+        logger.info(f"server listening on port {listening_port}")
+        # start transmitter
+        transmit_thread = threading.Thread(target=transmit, args=(sock, tx_queue, logger))
+        transmit_thread.start()
+        time.sleep(0.1)
+        # start listener
+        listener_thread = threading.Thread(target=listen, args=(sock, rx_queue, tx_queue, logger))
+        listener_thread.start()
+        while listener_thread.is_alive() and listener_thread.is_alive():
+            time.sleep(1)
+        logger.fatal(f"atleast one server thread terminated, check logs and restart")
+
+        # not sure this actually exists the thread if there are running children?
+        raise RuntimeError("at least one server thread terminated, check logs and restart")
+
+
+
+def start_server_thread(listening_port, rx_queue, tx_queue, logpath=None, debug=False):
+    thread = threading.Thread(target=start_server, kwargs=dict(listening_port=listening_port, rx_queue=rx_queue, tx_queue=tx_queue))
+    thread.start()
+    return thread
 
 if __name__ == '__main__':
     rx_queue = SimpleQueue()
     tx_queue = SimpleQueue()
-    start_server(9000, rx_queue=rx_queue, tx_queue=tx_queue, debug=True)
+    debug = True
+    logformat = '%(asctime)s %(name)-4s:[%(levelname)-8s] %(message)s'
+    logging.basicConfig(
+        format=logformat,
+        datefmt='%Y/%m/%d %H:%M:%S',
+        level=logging.DEBUG if debug else logging.INFO,
+        filename='middleman.log',
+        filemode='a'
+    )
+    console = logging.StreamHandler()
+    console.setLevel(logging.DEBUG if debug else logging.INFO)
+    formatter = logging.Formatter(logformat, datefmt='%Y/%m/%d %H:%M:%S')
+    # tell the handler to use this format
+    console.setFormatter(formatter)
+    logging.getLogger('').addHandler(console)
+
+    start_server(9000, rx_queue=rx_queue, tx_queue=tx_queue)

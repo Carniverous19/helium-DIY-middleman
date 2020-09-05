@@ -11,19 +11,20 @@ import datetime as dt
 import struct
 import time
 
-
 class Message:
     IDENT = 0xFF
     NAME = "None"
 
     def __init__(self, data=b''):
-        if not data or len(data)<4 or data[3] != self.IDENT:
-            raise ValueError("invalid message")
+
         self.data = data
 
     def decode(self, data=None):
         if data:
             self.data = data
+        if not self.data or len(self.data) < 4 or self.data[3] != self.IDENT:
+            raise ValueError(f"invalid message {data}")
+
         if len(self.data) < 4:
             raise ValueError(f"invalid {self.NAME} message")
         result = dict(
@@ -36,7 +37,7 @@ class Message:
         return result
 
     def encode(self, message_object):
-        self.data = struct.pack("BHB", message_object.get('ver', 2), message_object.get('token'), message_object.get('identifier'))
+        self.data = struct.pack("=BHB", message_object.get('ver', 2), message_object.get('token'), message_object.get('identifier'))
         return self.data
 
     def ack(self):
@@ -49,7 +50,7 @@ class MsgPushData(Message):
     def decode(self, data=None):
         result = super().decode(data)
         if len(self.data) < 14:
-            raise ValueError(f"invalid {self.NAME} message")
+            raise ValueError(f"invalid {self.NAME} message, too short {len(self.data)}/14 bytes")
 
         result['MAC'] = ':'.join([f"{x:02X}" for x in self.data[4:12]])
         result['data'] = json.loads(self.data[12:].decode())
@@ -58,7 +59,7 @@ class MsgPushData(Message):
     def encode(self, message_object):
         super().encode(message_object)
         # add MAC address
-        self.data += struct.pack('BBBBBBBB', *[int(x, 16) for x in message_object['MAC'].split(':')])
+        self.data += struct.pack('=BBBBBBBB', *[int(x, 16) for x in message_object['MAC'].split(':')])
         # add json payload
         self.data += json.dumps(message_object['data']).encode()
         return self.data
@@ -79,7 +80,7 @@ class MsgPullData(Message):
 
         result = super().decode(data)
         if len(self.data) < 12:
-            raise ValueError(f"invalid {self.NAME} message")
+            raise ValueError(f"invalid {self.NAME} message, too short {len(self.data)}/12 bytes")
 
         result['MAC'] = ':'.join([f"{x:02X}" for x in self.data[4:12]])
 
@@ -88,7 +89,7 @@ class MsgPullData(Message):
     def encode(self, message_object):
         super().encode(message_object)
         # add MAC address
-        self.data += struct.pack('BBBBBBBB', *[int(x, 16) for x in message_object['MAC'].split(':')])
+        self.data += struct.pack('=BBBBBBBB', *[int(x, 16) for x in message_object['MAC'].split(':')])
         return self.data
 
     def ack(self):
@@ -108,7 +109,7 @@ class MsgPullResp(Message):
 
         result = super().decode(data)
         if len(self.data) < 14:
-            raise ValueError(f"invalid {self.NAME} message")
+            raise ValueError(f"invalid {self.NAME} message, too short {len(self.data)}/14 bytes")
 
         result['data'] = json.loads(self.data[4:].decode())
         return result
@@ -120,13 +121,13 @@ class MsgPullResp(Message):
         return self.data
 
 class MsgTxAck(Message):
-    IDENT = 0x03
+    IDENT = 0x05
     NAME = "TX_ACK"
     def decode(self, data=None):
 
         result = super().decode(data)
         if len(self.data) < 12:
-            raise ValueError(f"invalid {self.NAME} message")
+            raise ValueError(f"invalid {self.NAME} message, too short {len(self.data)}/12 bytes")
 
 
         result['MAC'] = ':'.join([f"{x:02X}" for x in self.data[4:12]])
@@ -137,7 +138,7 @@ class MsgTxAck(Message):
     def encode(self, message_object):
         super().encode(message_object)
         # add MAC address
-        self.data += struct.pack('BBBBBBBB', *[int(x, 16) for x in message_object['MAC'].split(':')])
+        self.data += struct.pack('=BBBBBBBB', *[int(x, 16) for x in message_object['MAC'].split(':')])
         # add json payload
         self.data += json.dumps(message_object['data']).encode()
         return self.data
@@ -161,7 +162,7 @@ msg_types_name = {
 
 def decode_message(rawmsg, return_ack=False):
     if len(rawmsg) < 4 or rawmsg[3] not in msg_types:
-        raise ValueError(f"invalid message: {rawmsg}")
+        raise ValueError(f"invalid message: {rawmsg}, too short {len(rawmsg)}/4 bytes")
 
     msg_obj = msg_types[rawmsg[3]](rawmsg)
     msg_body = msg_obj.decode()
@@ -183,3 +184,21 @@ def print_message(rawmsg):
     msg_body = decode_message(rawmsg)
     print(msg_body)
 
+
+
+def trials():
+    payload = dict(
+        _NAME_=MsgPullData.NAME,
+        identifier=MsgPullData.IDENT,
+        ver=2,
+        token=0xABCD,  # TODO: Make random token
+        MAC='AA:55:5A:00:00:00:00:00'
+    )
+    print(f"encoding body: {payload}")
+    payload_raw = encode_message(payload)
+    print(f" to raw: {payload_raw}")
+    payload = decode_message(payload_raw)
+    print(f"back to body: {payload}")
+
+if __name__ == "__main__":
+    trials()
