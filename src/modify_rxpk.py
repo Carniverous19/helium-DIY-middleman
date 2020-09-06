@@ -9,6 +9,7 @@ better mapping of input RSSI/SNR to output RSSI/SNR, etc
 
 import json
 import time
+import logging
 import datetime as dt
 
 
@@ -20,7 +21,7 @@ class RXMetadataModification:
         self.max_snr = 0
         self.min_snr = -20
         self.tmst_offset = 0
-
+        self.logger = logging.getLogger('RXMeta')
 
     def modify_rxpk(self, rxpk, src_mac=None, dest_mac=None):
         """
@@ -29,6 +30,7 @@ class RXMetadataModification:
         :return: object with metadata modified
         """
 
+        old_snr, old_rssi, old_ts = rxpk['lsnr'], rxpk['rssi'], rxpk['tmst']
         # simple clipping low and high, could be a lot more sophisticated to add randomness or better mapping
         rxpk['rssi'] = min(self.max_rssi, max(self.min_rssi, rxpk['rssi']))
         rxpk['lsnr'] = min(self.max_snr,  max(self.min_snr,  rxpk['lsnr']))
@@ -59,6 +61,6 @@ class RXMetadataModification:
             tmst_offset = (rxpk['tmst'] - elapsed_us_u32 + 2**32) % 2**32
             #  print(f"updated tmst_offset from:{self.tmst_offset} to {tmst_offset} (error: {self.tmst_offset - tmst_offset})")
             self.tmst_offset = tmst_offset
-
+        self.logger.debug(f"modified packet from GW {src_mac[-8:]} to vGW {dest_mac[-8:]}, rssi:{old_rssi}->{rxpk['rssi']}, lsnr:{old_snr}->{rxpk['lsnr']}, tmst:{old_ts}->{rxpk['tmst']}")
         return rxpk
 
