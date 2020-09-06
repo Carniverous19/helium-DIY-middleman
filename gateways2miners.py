@@ -92,7 +92,7 @@ class GW2Miner:
             if time.time() - self.last_stat_ts > self.stat_interval:
                 self.send_stats()
 
-            logging.debug(f"loop time: {time.time() - start_ts:.4f}")
+            # logging.debug(f"loop time: {time.time() - start_ts:.4f}")
             msg, addr = self.get_message()
             start_ts = time.time()
             if not msg:
