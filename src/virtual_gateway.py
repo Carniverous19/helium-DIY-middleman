@@ -11,6 +11,7 @@ import threading
 import logging
 import time
 import copy
+import random
 
 from queue import SimpleQueue, Full, Empty
 
@@ -39,6 +40,9 @@ class VirtualGateway:
         self.server_address = server_address
         self.socket = socket
         self.logger = logger
+        self.total_rxpk = 0     # track total received packets forwarded by this vgateway
+        self.othergw_rxpk = 0   # track received packets forwarded by this vgway not received by paired real gw
+        self.last_rxpk_print_ts = 0    # track every
 
         # counts number of received and transmitted packets for stats
         self.rxnb = 0
@@ -69,8 +73,10 @@ class VirtualGateway:
 
         # first clear rx cache for anything older than 15 seconds
         for key in list(self.rx_cache.keys()):
-            if time.time() - self.rx_cache[key] > 15:
-                self.rx_cache.pop(key)
+            if time.time() - self.rx_cache[key][0] > 15:
+                _, recvd = self.rx_cache.pop(key)
+                if not recvd:
+                    self.othergw_rxpk += 1
 
         # next iterate through each received packet to see if it is a repeat from chached
         for rx in rxpks['data'].get('rxpk', []):
@@ -78,9 +84,11 @@ class VirtualGateway:
 
             if key in self.rx_cache:
                 self.logger.debug(f"(vgw:{self.mac[-8:]}) got repeated message {key} first seen {time.time() - self.rx_cache[key]:.3f}s ago, dropping")
+                self.rx_cache[key][1] |= self.mac == rxpks['MAC']
                 continue
-            self.rx_cache[key] = time.time()
-            self.logger.debug(f"(vgw:{self.mac[-8:]}) new rxpk signal: {rx['rssi']}/{rx['lsnr']} info:{key}")
+
+            # fisrt index in tuple is time received, 2nd is if received by this gateway
+            self.rx_cache[key] = [time.time(), self.mac == rxpks['MAC']]
 
             # modify metadata as needed
             orig_rssi, orig_snr, orig_ts = rx['rssi'], rx['lsnr'], rx['tmst']
@@ -89,6 +97,7 @@ class VirtualGateway:
             # add rx payload to array to be sent to miner
             self.logger.debug(f"(vgw:{self.mac[-8:]}) new rxpk signal: ({orig_rssi}/{orig_snr}->{rx['rssi']}/{rx['lsnr']}) info:{key}, tmst:{modified_rx['tmst']}")
             new_rxpks.append(modified_rx)
+            self.total_rxpk += 1
 
         if not new_rxpks:
             return
@@ -109,20 +118,23 @@ class VirtualGateway:
             _NAME_=MsgPushData.NAME,
             identifier=MsgPushData.IDENT,
             ver=2,
-            token=0,        # TODO: Make random token
+            token=random.randint(0, 2**16-1),
             MAC=self.mac,
             data=payload
         )
         payload_raw = encode_message(top)
         self.socket.sendto(payload_raw, (self.server_address, self.port_up))
         self.logger.debug(f"(vgw:{self.mac[-8:]}) sending PUSH_DATA {list(payload.keys())} to miner {(self.server_address, self.port_up)}")
+        if time.time() - self.last_rxpk_print_ts > 360:
+            self.logger.info(f"(vgw:{self.mac[-8:]}) packet summary: {self.othergw_rxpk}/{self.total_rxpk} ({self.othergw_rxpk*100/self.total_rxpk if self.total_rxpk else 0:.0f}%) packets from other gateways")
+            self.last_rxpk_print_ts = time.time()
 
     def send_PULL_DATA(self):
         payload = dict(
             _NAME_=MsgPullData.NAME,
             identifier=MsgPullData.IDENT,
             ver=2,
-            token=0,        # TODO: Make random token
+            token=random.randint(0, 2**16-1),
             MAC=self.mac
         )
         payload_raw = encode_message(payload)
@@ -236,7 +248,10 @@ def vgateway_handle_pull(boundsocket, tx_queue, vgateways, keepalive=10, stat_ke
             continue
         try:
             logger.debug(f"received from addr:{addr}, data:{data}")
-            msg = decode_message(data)
+            msg, ack = decode_message(data, return_ack=True)
+            if ack:
+                # send ack back to miner if appropriate for this command
+                boundsocket.sendto(ack, addr)
         except ValueError as e:
             continue
         if msg['_NAME_'] == MsgPullResp.NAME: # if not a Pull_Resp message its probably an ack, ignore

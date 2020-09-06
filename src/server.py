@@ -68,11 +68,8 @@ def listen(boundsocket=socket, rx_queue=None, tx_queue=None, logger=None):
 
             if msg['_NAME_'] == 'PUSH_DATA':
                 payload = msg['data']
-                if 'stat' in payload:
-                    # drop stat messages for now, not required
-                    logger.debug(f"RECV({loop_count:4}) - received stat message from gateway MAC:{msg['MAC'][-8:]}")
-                    pass
-                elif 'rxpk' in payload:
+
+                if 'rxpk' in payload:
 
                     try:
                         rx_queue.put_nowait(msg)
@@ -80,6 +77,10 @@ def listen(boundsocket=socket, rx_queue=None, tx_queue=None, logger=None):
                     except Full as e:
                         logger.error(f"RECV({loop_count:4}) - failed to put PUSH_DATA on queue from MAC:{msg['MAC'][-8:]}, queue size: {rx_queue.qsize()}")
                         pass
+                elif 'stat' in payload:
+                    # drop stat messages for now, not required
+                    logger.debug(f"RECV({loop_count:4}) - received stat message from gateway MAC:{msg['MAC'][-8:]}")
+                    pass
 
             elif msg['_NAME_'] == 'PULL_DATA':
                 try:
