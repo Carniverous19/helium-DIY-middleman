@@ -93,10 +93,11 @@ class GW2Miner:
                 self.send_stats()
 
             # logging.debug(f"loop time: {time.time() - start_ts:.4f}")
-            msg, addr = self.get_message()
+
+            msg, addr = self.get_message(timeout=5)
+
             start_ts = time.time()
             if not msg:
-                logging.debug(f"unrecognized datagram from {addr}")
                 continue
 
             if msg['_NAME_'] == messages.MsgPushData.NAME:
@@ -137,6 +138,11 @@ class GW2Miner:
         msg['data']['rxpk'] = new_rxpks
         # send rxpks from each gateway to miners
         for vgw in self.vgateways_by_mac.values():
+            # ignore if this is a generated PUSH from this gateways transmission
+            if msg.get('txMAC') == vgw.mac:
+                self.vgw_logger.debug(f"ignoring rxpk for vGW {vgw.mac[-8:]}. Its generated from PULL_RESP from this vGW")
+                continue
+
             data, addr = vgw.get_rxpks(copy.deepcopy(msg))
             if addr is None:
                 continue
@@ -155,12 +161,19 @@ class GW2Miner:
             return
         dest_addr = self.gw_listening_addrs.get(vgw.mac)
         if not dest_addr:
-            self.vgw_logger.warning(f"PULL_RESP from {addr} has no matching real gateway, dropping transmit command")
-            return
-        rawmsg = messages.encode_message(msg)
-        self.sock.sendto(rawmsg, dest_addr)
+            self.vgw_logger.warning(f"PULL_RESP from {addr} has no matching real gateway, will only be received by Virtual Miners")
         txpk = msg['data'].get('txpk')
-        self.vgw_logger.info(f"forwarding PULL_RESP from {addr} to gateway {vgw.mac[-8:]}, (freq:{round(txpk['freq'],2)}, sf:{txpk['datr']}, codr:{txpk['codr']}, size:{txpk['size']})")
+        rawmsg = messages.encode_message(msg)
+        if dest_addr:
+            self.sock.sendto(rawmsg, dest_addr)
+            self.vgw_logger.info(f"forwarding PULL_RESP from {addr} to gateway {vgw.mac[-8:]}, (freq:{round(txpk['freq'], 2)}, sf:{txpk['datr']}, codr:{txpk['codr']}, size:{txpk['size']})")
+
+
+
+        # make fake PUSH_DATA and forward to vgateways
+        fake_push = messages.PULL_RESP2PUSH_DATA(msg, src_mac=vgw.mac)
+        self.vgw_logger.debug(f"created fake rxpk for PULL_RESP from vgw:{vgw.mac[-8:]}")
+        self.handle_PUSH_DATA(msg=fake_push, addr=None)
 
     def handle_PULL_DATA(self, msg, addr=None):
         """
@@ -172,7 +185,6 @@ class GW2Miner:
         if msg['MAC'] not in self.gw_listening_addrs:
             self.vminer_logger.info(f"discovered gateway mac:{msg['MAC'][-8:]} at {addr}. {len(self.gw_listening_addrs) + 1} total gateways")
         self.gw_listening_addrs[msg['MAC']] = addr
-
 
     def get_message(self, timeout=None):
         """

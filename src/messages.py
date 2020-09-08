@@ -8,6 +8,7 @@ Parses messages as defined in https://github.com/Lora-net/packet_forwarder/blob/
 
 import json
 import datetime as dt
+import random
 import struct
 import time
 
@@ -120,6 +121,7 @@ class MsgPullResp(Message):
         self.data += json.dumps(message_object['data']).encode()
         return self.data
 
+
 class MsgTxAck(Message):
     IDENT = 0x05
     NAME = "TX_ACK"
@@ -183,6 +185,35 @@ def print_message(rawmsg):
 
     msg_body = decode_message(rawmsg)
     print(msg_body)
+
+def PULL_RESP2PUSH_DATA(pull_resp, src_mac):
+    push = dict(
+        _NAME_=MsgPushData.NAME,
+        identifier=MsgPushData.IDENT,
+        ver=2,
+        token=random.randint(0, 2**16-1),  # TODO: Make random token
+        MAC=src_mac,
+        txMAC=src_mac,      # this is used to signal generated from tx originatng at this mac
+        payload=None
+    )
+    txpk = pull_resp['data']['txpk']
+    payload = dict(
+        data=txpk['data'],
+        size=txpk['size'],
+        codr=txpk['codr'],
+        datr=txpk['datr'],
+        modu=txpk['modu'],
+        rfch=txpk['rfch'],
+        freq=pull_resp['data']['txpk']['freq'],
+        tmst=0x00000000,        # tmst will be set appropriate for receiver
+        rssi=-113,              # set rssi to some reasonable default
+        lsnr=-5.5,              # set lsnr to some reasonable default
+        stat=1,                 # CRC is ok
+        chan=3                  # some reasonable default?
+    )
+    push['data'] = dict(rxpk=[payload])
+    return push
+
 
 
 
