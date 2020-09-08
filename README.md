@@ -101,14 +101,15 @@ are in order an increment as expected regardless of real gateway (we cant assume
 These are forwarded unmodified to the gateway with the same MAC address as the virtual gateway interfacing with the miner.
 This ensures transmit behavior of a miner remains consistent.  This restriction may be removed in later revisions.
 
+To ensure PULL_RESPs are received by the miners, a fake PUSH_DATA payload is created for every PULL_RESP with simulated RSSI, SNR, and timestamp (currently hardcoded RSSI and SNR).
+This fake PUSH_DATA runs through the same process as real ones except it is not forwarded to the miner that sent the PULL_RESP (so gateways dont hear their own transmissions).
+Some expiremention with a RAK2445 based RPi hat shows that transmissions are received by the concentrator.  If this is determined to be expected behavior this filtering can be removed.
+
 All PULL_DATA, PUSH_DATA, and PULL_RESP messages are immediately sent the corresponding ACK regardless of whether the data was actually delivered.
  
  ## Areas for further development 
  
-  - More sophisticate metadata modification to adapt to PoC changes.  The framework exists for this and much more sophistication can be added to teh separate `modify_rxpk.py` code.
-  - Ensure transmit commands are received by all miners (but the transmitter).  Currently transmits are only sent to miners if received by one of the gateways.
-    A better system would build dummy PUSH_DATA message for every transmission to ensure transmissions are witnessed by all miners.  
-    This would also allow there to be zero real gateways and all miners could communicate in an isolated island through this software.  This is **In Work**.
+  - More sophisticated metadata modification to adapt to PoC changes.  The framework exists for this and much more sophistication can be added to the separate `modify_rxpk.py` code.
   - Detection of dead miner or gateway (using ACKs).  There is no way to forget a miner or gateway without software restart.
 
   
@@ -116,6 +117,6 @@ All PULL_DATA, PUSH_DATA, and PULL_RESP messages are immediately sent the corres
 
  - I have done very little testing.  I have only one real gateway and one miner VM.  I did run some fake data simulating multiple gateways and miners but I would want to do significantly more testing.  I did check transmissions (from miner out gatways) using semtech's `util_tx_test`
  - Software is 100% proof of concept.  No guarantees on reliability or accuracy only use for testing
- - This software can be used for "gaming" / "exploits".  Part of creating this software is to demo these exploits to encourage community discussion, expose limitations, and be a weak test for any exploit fixes.
+ - This software can be used for "gaming" or "exploits".  Part of creating this software is to demo these exploits to encourage community discussion, expose limitations, and be a weak test for any exploit fixes.
    You should only use this software for testing purposes and not for widespread gaming or exploitation of the Helium network.
  - 
