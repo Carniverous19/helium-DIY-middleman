@@ -39,11 +39,11 @@ These don't have to match the MAC address of any physical gateway but if they do
 If you want transmit commands from a miner to actually be transmitted over LoRa the `"gateway_ID"` should match the MAC address for one of the real miners sending data to this software.
 This limitation can be removed with additional software to allow independently mapping miners to transmitting gateways.
 
-Note that all received packets from any gateway will be sent to ALL miners but transmit commands from a miner will be sent to at most one gateway.
+Note: all received packets from any gateway will be sent to ALL miners but transmit commands from a miner will be sent to at most one gateway.
 
 ### Configuration files for gateways
-Each gateway should have a unique `gateway_ID`.  These dont have to match with any virtual gateway.  See limitations mentioned above for why you may want to match a virtual gateway MAC address.
-The `serv_port_up` and `serv_port_down` of each gateway should match that you will set with the `-p` or `--port` in when starting `ManyGW2ManyMiner.py`.
+Each gateway should have a unique `gateway_ID`.  These don't have to match with any virtual gateway.  See limitations mentioned above for why you may want to match a virtual gateway MAC address.
+The `serv_port_up` and `serv_port_down` of each gateway should match the port you set with the `-p` or `--port` arguement when starting `gateways2miners.py`.
 
 ### Example Setup
 This guide assumes you have a single DIY hotspot running the semtech packet fowarding software per Helium Inc's [Build a Hotspot](https://developer.helium.com/hotspot/developer-setup) guide.
@@ -54,18 +54,18 @@ Also assume this software is running on an independent computer, either an addit
 To start using this software perform the following:
 - Go a command line on the gateway and copy the file `packet_forwarder/lora_pkt_fwd/global_conf.json` to `global_conf.json.old` to keep as a backup.
 - Find the line `"server_address": "18.218.135.176"` in the  `global_conf.json` file and change it to `"server_address": "192.168.0.100"`.
-    Now your gateway is pointng to this middleman software instead of directly to your miner.
-- Also in `global_conf.json` (or possibly in `local_conf.json` if it exists) find the line `gateway_ID` and record the value example:`"gateway_ID": "AA555A0000001234"`.
+    Now your gateway is pointing to this middleman software instead of directly to your miner.
+- Also in `global_conf.json` (or possibly in `local_conf.json` if it exists) find the line `gateway_ID` and record the value. (example:`"gateway_ID": "AA555A0000001234"`)
 - Go the computer where you want to run the middleman software and create a folder in your home directory called `gateways` and change directory into the newly created folder:
 
-
+ 
     cd ~
     mkdir gateways
     cd gateways
 
 - you can either copy the original `global_conf.json.old` file from the gateway and put it in this directory (deleting .old from the filename). or create a new config file and add the required lines:
 
-
+ 
     nano gateway1.json
 
 The contents of `gateway1.json` should match whats shown below.  Note you need to change gateway_ID and server_address to match your original config files form the gateway:
@@ -81,7 +81,7 @@ The contents of `gateway1.json` should match whats shown below.  Note you need t
 
 
 
-## How it works
+## How It Works
 This software listens for UDP datagrams on the specified port (defaults to `1680`).  
 datagrams received on this port may be from gatways (PULL_DATA, PUSH_DATA, TX_ACK) or from miners (PULL_ACK, PUSH_ACK, PULL_RESP).
 any ACK message is dropped as they are for information only.
@@ -107,7 +107,7 @@ Some expiremention with a RAK2445 based RPi hat shows that transmissions are rec
 
 All PULL_DATA, PUSH_DATA, and PULL_RESP messages are immediately sent the corresponding ACK regardless of whether the data was actually delivered.
  
- ## Areas for further development 
+## Areas for Further Development 
  
   - More sophisticated metadata modification to adapt to PoC changes.  The framework exists for this and much more sophistication can be added to the separate `modify_rxpk.py` code.
   - Detection of dead miner or gateway (using ACKs).  There is no way to forget a miner or gateway without software restart.
@@ -119,4 +119,3 @@ All PULL_DATA, PUSH_DATA, and PULL_RESP messages are immediately sent the corres
  - Software is 100% proof of concept.  No guarantees on reliability or accuracy only use for testing
  - This software can be used for "gaming" or "exploits".  Part of creating this software is to demo these exploits to encourage community discussion, expose limitations, and be a weak test for any exploit fixes.
    You should only use this software for testing purposes and not for widespread gaming or exploitation of the Helium network.
- - 
