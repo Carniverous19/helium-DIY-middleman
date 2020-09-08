@@ -91,27 +91,33 @@ These messages contain the MAC address (same as `Gateway_ID`) as well as the ori
 This mapping of gateway MAC to (IP, Port) is saved so the software knows where to send PULL_RESP messages.
 
 **PUSH_DATA** messages from gateways are used to inform the miner of received LoRa packets.
-Each received LoRa packet, regardless of which gateway send the message is forwarded to all gateways.
+Each received LoRa packet, regardless of which gateway sent the message, is forwarded to all gateways.
 Since multiple gateways may receive the same message, a cache is of recent messages is kept and duplicate LoRa packets are dropped.
 The metadata such as gateway MAC address is modified so each miner thinks it is communicating with a unique gateway.
-The RSSI, SNR, and timestamp (`tmst`) fields are also modified to be in acceptable ranges and to ensure the timestamps.
-are in order an increment as expected regardless of real gateway (we cant assume timestamps are syncronized if gatway doesnt have GPS).
+The RSSI, SNR, and timestamp (`tmst`) fields are also modified to be in acceptable ranges and to ensure the timestamps are in order an increment as expected regardless of real gateway (we cant assume timestamps are synchronized if gateway doesnt have GPS).
 
 **PULL_RESP** messages received from miners contain data to transmit (usually for device JOINs or PoC).
-These are forwarded unmodified to the gateway with the same MAC address as the virtual gateway interfacing with the miner.
+These are forwarded unmodified to the gateway with the same MAC address as the virtual gateway interfacing with the miner if it exists and a PULL_DATA was received from the gateway.
 This ensures transmit behavior of a miner remains consistent.  This restriction may be removed in later revisions.
 
 To ensure PULL_RESPs are received by the miners, a fake PUSH_DATA payload is created for every PULL_RESP with simulated RSSI, SNR, and timestamp (currently hardcoded RSSI and SNR).
 This fake PUSH_DATA runs through the same process as real ones except it is not forwarded to the miner that sent the PULL_RESP (so gateways dont hear their own transmissions).
-Some expiremention with a RAK2445 based RPi hat shows that transmissions are received by the concentrator.  If this is determined to be expected behavior this filtering can be removed.
+Some experimentation  with a RAK2445 based RPi hat shows that transmissions are received by the concentrator.  If this is determined to be expected behavior this filtering can be removed.
 
 All PULL_DATA, PUSH_DATA, and PULL_RESP messages are immediately sent the corresponding ACK regardless of whether the data was actually delivered.
+ 
+Additionally, all virtual gateways (interfaces for real miners) periodically send PULL_DATA and PUSH_DATA messages with `stat` payloads to the gateways.
+These messages are required to ensure the software remains accessible to gateways as and the behavior mimics the semtech packet forwarder.
+To send valid stats messages each virtual gateway keeps track of the number of PUSH_DATA and PULL_RESP messages it received and increments a counter for each.
  
 ## Areas for Further Development 
  
   - More sophisticated metadata modification to adapt to PoC changes.  The framework exists for this and much more sophistication can be added to the separate `modify_rxpk.py` code.
+    Advanced metadata modification could include queries to the ETL database, querying ML models (either specific to a gateway or global), etc.
+    An important point is the entire blockchain history and challenge history for these gateways and miners are available for determining appropriate metadata.
   - Detection of dead miner or gateway (using ACKs).  There is no way to forget a miner or gateway without software restart.
-
+  - Transmission errors are silently ignored, for reliable transmissions these should be fed back to miners.
+  - Security: this code is vulnerable to lots of attacks.  One possible attack is spoofing gateways.
   
 ## Disclaimers
 
