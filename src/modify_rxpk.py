@@ -10,16 +10,17 @@ better mapping of input RSSI/SNR to output RSSI/SNR, etc
 import json
 import time
 import logging
+import random
 import datetime as dt
 
 
 
 class RXMetadataModification:
     def __init__(self):
-        self.min_rssi = -120
+        self.min_rssi = -121
         self.max_rssi = -90  # valid to 50 miles via FSPL filter
-        self.max_snr = 0
-        self.min_snr = -20
+        self.max_snr = 0.9
+        self.min_snr = -14.5
         self.tmst_offset = 0
         self.logger = logging.getLogger('RXMeta')
 
@@ -32,6 +33,12 @@ class RXMetadataModification:
 
         old_snr, old_rssi, old_ts = rxpk['lsnr'], rxpk['rssi'], rxpk['tmst']
         # simple clipping low and high, could be a lot more sophisticated to add randomness or better mapping
+        if src_mac == dest_mac:
+            rxpk['rssi'] += 3  # boost RSSI for src gateway
+        else:
+            rxpk['rssi'] += random.randint(-2, 2)  # randomize rssi +/- 2dBm
+        rxpk['lsnr'] = round(rxpk['lsnr'] + random.randrange(-15, 10, 0.1), 1)  # randomize snr +/- 1dB in 0.1dB increments
+        # clip after adjustments to ensure result is still valid
         rxpk['rssi'] = min(self.max_rssi, max(self.min_rssi, rxpk['rssi']))
         rxpk['lsnr'] = min(self.max_snr,  max(self.min_snr,  rxpk['lsnr']))
 
@@ -47,7 +54,7 @@ class RXMetadataModification:
             if ts_str[-1] == 'Z':
                 ts_str = ts_str[:-1]
                 ts_dt = dt.datetime.fromisoformat(ts_str)
-            if(abs((ts_dt - dt.datetime.utcnow()).total_seconds()) > 1.5):
+            if abs((ts_dt - dt.datetime.utcnow()).total_seconds()) > 1.5:
                 ts_dt = dt.datetime.utcnow()
 
         ts_midnight = dt.datetime(year=ts_dt.year, month=ts_dt.month, day=ts_dt.day, hour=0, minute=0, second=0, microsecond=0)

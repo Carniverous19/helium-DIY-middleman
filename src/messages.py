@@ -197,6 +197,7 @@ def PULL_RESP2PUSH_DATA(pull_resp, src_mac):
         payload=None
     )
     txpk = pull_resp['data']['txpk']
+    chan = int(round((txpk['freq'] - 903.9) / .2), 0) + 8
     payload = dict(
         data=txpk['data'],
         size=txpk['size'],
@@ -204,12 +205,12 @@ def PULL_RESP2PUSH_DATA(pull_resp, src_mac):
         datr=txpk['datr'],
         modu=txpk['modu'],
         rfch=txpk['rfch'],
-        freq=pull_resp['data']['txpk']['freq'],
+        freq=txpk['freq'],
         tmst=0x00000000,        # tmst will be set appropriate for receiver
         rssi=-113,              # set rssi to some reasonable default
         lsnr=-5.5,              # set lsnr to some reasonable default
         stat=1,                 # CRC is ok
-        chan=3                  # some reasonable default?
+        chan=chan               # channel
     )
     push['data'] = dict(rxpk=[payload])
     return push
