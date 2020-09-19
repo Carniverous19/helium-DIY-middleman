@@ -37,7 +37,7 @@ class RXMetadataModification:
             rxpk['rssi'] += 3  # boost RSSI for src gateway
         else:
             rxpk['rssi'] += random.randint(-2, 2)  # randomize rssi +/- 2dBm
-        rxpk['lsnr'] = round(rxpk['lsnr'] + random.randrange(-15, 10, 0.1), 1)  # randomize snr +/- 1dB in 0.1dB increments
+        rxpk['lsnr'] = round(rxpk['lsnr'] + random.randint(-15, 10) * 0.1, 1)  # randomize snr +/- 1dB in 0.1dB increments
         # clip after adjustments to ensure result is still valid
         rxpk['rssi'] = min(self.max_rssi, max(self.min_rssi, rxpk['rssi']))
         rxpk['lsnr'] = min(self.max_snr,  max(self.min_snr,  rxpk['lsnr']))
@@ -68,6 +68,6 @@ class RXMetadataModification:
             tmst_offset = (rxpk['tmst'] - elapsed_us_u32 + 2**32) % 2**32
             #  print(f"updated tmst_offset from:{self.tmst_offset} to {tmst_offset} (error: {self.tmst_offset - tmst_offset})")
             self.tmst_offset = tmst_offset
-        self.logger.debug(f"modified packet from GW {src_mac[-8:]} to vGW {dest_mac[-8:]}, rssi:{old_rssi}->{rxpk['rssi']}, lsnr:{old_snr}->{rxpk['lsnr']}, tmst:{old_ts}->{rxpk['tmst']}")
+        self.logger.debug(f"modified packet from GW {src_mac[-8:]} to vGW {dest_mac[-8:]}, rssi:{old_rssi}->{rxpk['rssi']:.1f}, lsnr:{old_snr}->{rxpk['lsnr']:.1f}, tmst:{old_ts}->{rxpk['tmst']}")
         return rxpk
 

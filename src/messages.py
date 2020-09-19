@@ -197,7 +197,7 @@ def PULL_RESP2PUSH_DATA(pull_resp, src_mac):
         payload=None
     )
     txpk = pull_resp['data']['txpk']
-    chan = int(round((txpk['freq'] - 903.9) / .2), 0) + 8
+    chan = int(round((txpk['freq'] - 903.9) / .2, 0)) + 8
     payload = dict(
         data=txpk['data'],
         size=txpk['size'],

@@ -121,7 +121,11 @@ To send valid stats messages each virtual gateway keeps track of the number of P
   
 ## Disclaimers
 
- - I have done very little testing.  I have only one real gateway and one miner VM.  I did run some fake data simulating multiple gateways and miners but I would want to do significantly more testing.  I did check transmissions (from miner out gatways) using semtech's `util_tx_test`
+ - I have done very little testing.  
+ I have only one real gateway and one miner VM.
+ I did run some fake data simulating multiple gateways and miners but I would want to do significantly more testing.
+ I did check transmissions (from miner out gatways) using semtech's `util_tx_test`.
+ Additionally I verified RX and TX with an on-chain DIY miner that earns for witnessing and PoC transmissions.
  - Software is 100% proof of concept.  No guarantees on reliability or accuracy only use for testing
  - This software can be used for "gaming" or "exploits".  Part of creating this software is to demo these exploits to encourage community discussion, expose limitations, and be a weak test for any exploit fixes.
    You should only use this software for testing purposes and not for widespread gaming or exploitation of the Helium network.
