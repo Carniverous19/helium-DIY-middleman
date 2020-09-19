@@ -124,9 +124,9 @@ class GW2Miner:
 
             key = self.__rxpk_key__(rxpk)
             if key in self.rxpk_cache:
-                self.vminer_logger.debug(f"repeated packet: {key}")
+                self.vminer_logger.debug(f"repeated packet  [{rxpk.get('size')}B]: {key}")
                 continue
-            self.vminer_logger.debug(f"new packet: {key}")
+            self.vminer_logger.debug(f"new packet [{rxpk.get('size')}B]: {key}")
             self.rxpk_cache[key] = time.time()
             new_rxpks.append(rxpk)
 
@@ -273,7 +273,7 @@ def main():
 
     args = parser.parse_args()
 
-    configure_logger(args.debug | True)
+    configure_logger(args.debug)
 
     logging.info(f"info log messages are enabled")
     logging.debug(f"debug log messages are enabled")
