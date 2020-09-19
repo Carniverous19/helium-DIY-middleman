@@ -1,5 +1,17 @@
 # helium-DIY-middleman
-Code here acts as a middleman between LoRa gateways running Semtech packet forwarders and servers ingesting packet forwarder data 
+Code here acts as a middleman between LoRa gateways running Semtech packet forwarders and servers ingesting packet forwarder data.
+You would run this code instead of directly pointing gateways to miners for a few possible reasons:
+
+- You want to send data from one gateway to multiple on-chain miners to potentially increase earnings by increasing witnessing and potential selection for "next hop" in PoC
+- You have multiple DIY gateways but only a single on-chain DIY miner (in alpha program).  you can route data from all of your gateways to your single miner increasing the ability to receive data, challenges, etc.
+- You have a gateway not located where its location is asserted and you want to modify received metadata to avoid PoCv9/v10 thresholds.
+- Any combination of the above.
+
+To test / demo the capability I currently have 3 gateways (RAK2245, RAK2247 and RAK2287) all sharing data with six miners.
+One gateway has a 8dBi omni on the east side of my building near the roofline, this is used for receive and transmit.
+One gateway has a 16dBi yagi for long reach and is receive only. 
+One gateway has an 11dBi panel antenna facing out a window on the west side of my building to receive from gateways the omni cannot hear due to building obstruction.
+
 ## Installation Instructions
 Clone this repository.  Note daily, maybe breaking changes may be pushed to master at any time.  
 Some functional versions may be tagged and you may want to pull those
@@ -36,13 +48,13 @@ The configuration files are the same used by the semtech packet forwarder but on
 Each gateway should have a unique `"gateway_ID"` or MAC address.
 These will be the MAC addresses of the virtual gateways that interface with miners.
 These don't have to match the MAC address of any physical gateway but if they dont it means they cannot transmit actual RF packets.  The corresponding miner would be *receive only*.
-If you want transmit commands from a miner to actually be transmitted over LoRa the `"gateway_ID"` should match the MAC address for one of the real miners sending data to this software.
+If you want transmit commands from a miner to actually be transmitted over LoRa the `"gateway_ID"` should match the MAC address for one of the physical gateways sending data to this software.
 This limitation can be removed with additional software to allow independently mapping miners to transmitting gateways.
 
 Note: all received packets from any gateway will be sent to ALL miners but transmit commands from a miner will be sent to at most one gateway.
 
 ### Configuration files for gateways
-Each gateway should have a unique `gateway_ID`.  These don't have to match with any virtual gateway.  See limitations mentioned above for why you may want to match a virtual gateway MAC address.
+Each physical gateway should have a unique `gateway_ID`.  These don't have to match with any virtual gateway.  See limitations mentioned above for why you may want to match a virtual gateway MAC address.
 The `serv_port_up` and `serv_port_down` of each gateway should match the port you set with the `-p` or `--port` arguement when starting `gateways2miners.py`.
 
 ### Example Setup
@@ -102,18 +114,17 @@ This ensures transmit behavior of a miner remains consistent.  This restriction 
 
 To ensure PULL_RESPs are received by the miners, a fake PUSH_DATA payload is created for every PULL_RESP with simulated RSSI, SNR, and timestamp (currently hardcoded RSSI and SNR).
 This fake PUSH_DATA runs through the same process as real ones except it is not forwarded to the miner that sent the PULL_RESP (so gateways dont hear their own transmissions).
-Some experimentation  with a RAK2445 based RPi hat shows that transmissions are received by the concentrator.  If this is determined to be expected behavior this filtering can be removed.
 
 All PULL_DATA, PUSH_DATA, and PULL_RESP messages are immediately sent the corresponding ACK regardless of whether the data was actually delivered.
  
 Additionally, all virtual gateways (interfaces for real miners) periodically send PULL_DATA and PUSH_DATA messages with `stat` payloads to the gateways.
-These messages are required to ensure the software remains accessible to gateways as and the behavior mimics the semtech packet forwarder.
+These messages are required to ensure the software remains accessible to gateways and the behavior mimics the semtech packet forwarder.
 To send valid stats messages each virtual gateway keeps track of the number of PUSH_DATA and PULL_RESP messages it received and increments a counter for each.
  
 ## Areas for Further Development 
  
   - More sophisticated metadata modification to adapt to PoC changes.  The framework exists for this and much more sophistication can be added to the separate `modify_rxpk.py` code.
-    Advanced metadata modification could include queries to the ETL database, querying ML models (either specific to a gateway or global), etc.
+    Advanced metadata modification could include queries to an ETL database, querying ML models (either specific to a gateway or global), etc.
     An important point is the entire blockchain history and challenge history for these gateways and miners are available for determining appropriate metadata.
   - Detection of dead miner or gateway (using ACKs).  There is no way to forget a miner or gateway without software restart.
   - Transmission errors are silently ignored, for reliable transmissions these should be fed back to miners.
@@ -122,7 +133,6 @@ To send valid stats messages each virtual gateway keeps track of the number of P
 ## Disclaimers
 
  - I have done very little testing.  
- I have only one real gateway and one miner VM.
  I did run some fake data simulating multiple gateways and miners but I would want to do significantly more testing.
  I did check transmissions (from miner out gatways) using semtech's `util_tx_test`.
  Additionally I verified RX and TX with an on-chain DIY miner that earns for witnessing and PoC transmissions.
