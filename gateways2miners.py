@@ -113,7 +113,6 @@ class GW2Miner:
         :param addr:
         :return:
         """
-
         if 'rxpk' not in msg['data']:   # just a stat message
             return
         # filter payloads for new packets not in cache
@@ -126,7 +125,10 @@ class GW2Miner:
             if key in self.rxpk_cache:
                 self.vminer_logger.debug(f"repeated packet  [{rxpk.get('size')}B]: {key}")
                 continue
-            self.vminer_logger.debug(f"new packet [{rxpk.get('size')}B]: {key}")
+            if rxpk.get('size') == 80 and rxpk.get('datr') == 'SF10BW125':
+                self.vminer_logger.info(f"new possible challenge [{rxpk.get('size')}B]: {key}")
+            else:
+                self.vminer_logger.debug(f"new packet [{rxpk.get('size')}B]: {key}")
             self.rxpk_cache[key] = time.time()
             new_rxpks.append(rxpk)
 
@@ -170,7 +172,7 @@ class GW2Miner:
 
         # make fake PUSH_DATA and forward to vgateways
         fake_push = messages.PULL_RESP2PUSH_DATA(msg, src_mac=vgw.mac)
-        self.vgw_logger.debug(f"created fake rxpk for PULL_RESP from vgw:{vgw.mac[-8:]}")
+        self.vgw_logger.info(f"created fake rxpk for PULL_RESP from vgw:{vgw.mac[-8:]}")
         self.handle_PUSH_DATA(msg=fake_push, addr=None)
 
     def handle_PULL_DATA(self, msg, addr=None):

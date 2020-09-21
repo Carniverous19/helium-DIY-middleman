@@ -4,10 +4,10 @@ You would run this code instead of directly pointing gateways to miners for a fe
 
 - You want to send data from one gateway to multiple on-chain miners to potentially increase earnings by increasing witnessing and potential selection for "next hop" in PoC
 - You have multiple DIY gateways but only a single on-chain DIY miner (in alpha program).  you can route data from all of your gateways to your single miner increasing the ability to receive data, challenges, etc.
-- You have a gateway not located where its location is asserted and you want to modify received metadata to avoid PoCv9/v10 thresholds.
+- You have a gateway not located at its asserted location and you want to modify received metadata to avoid PoCv9/v10 thresholds.  
 - Any combination of the above.
 
-To test / demo the capability I currently have 3 gateways (RAK2245, RAK2247 and RAK2287) all sharing data with six miners.
+To test this capability I currently have 3 gateways (RAK2245, RAK2247 and RAK2287) all sharing data with six miners.
 One gateway has a 8dBi omni on the east side of my building near the roofline, this is used for receive and transmit.
 One gateway has a 16dBi yagi for long reach and is receive only. 
 One gateway has an 11dBi panel antenna facing out a window on the west side of my building to receive from gateways the omni cannot hear due to building obstruction.
@@ -70,14 +70,14 @@ To start using this software perform the following:
 - Also in `global_conf.json` (or possibly in `local_conf.json` if it exists) find the line `gateway_ID` and record the value. (example:`"gateway_ID": "AA555A0000001234"`)
 - Go the computer where you want to run the middleman software and create a folder in your home directory called `gateways` and change directory into the newly created folder:
 
- 
+    
     cd ~
     mkdir gateways
     cd gateways
 
 - you can either copy the original `global_conf.json.old` file from the gateway and put it in this directory (deleting .old from the filename). or create a new config file and add the required lines:
 
- 
+    
     nano gateway1.json
 
 The contents of `gateway1.json` should match whats shown below.  Note you need to change gateway_ID and server_address to match your original config files form the gateway:
@@ -95,7 +95,7 @@ The contents of `gateway1.json` should match whats shown below.  Note you need t
 
 ## How It Works
 This software listens for UDP datagrams on the specified port (defaults to `1680`).  
-datagrams received on this port may be from gatways (PULL_DATA, PUSH_DATA, TX_ACK) or from miners (PULL_ACK, PUSH_ACK, PULL_RESP).
+datagrams received on this port may be from gateways (PULL_DATA, PUSH_DATA, TX_ACK) or from miners (PULL_ACK, PUSH_ACK, PULL_RESP).
 any ACK message is dropped as they are for information only.
 
 **PULL_DATA** messages from gateways are used to ensure a communication path through any NAT or router is open.
@@ -106,14 +106,14 @@ This mapping of gateway MAC to (IP, Port) is saved so the software knows where t
 Each received LoRa packet, regardless of which gateway sent the message, is forwarded to all gateways.
 Since multiple gateways may receive the same message, a cache is of recent messages is kept and duplicate LoRa packets are dropped.
 The metadata such as gateway MAC address is modified so each miner thinks it is communicating with a unique gateway.
-The RSSI, SNR, and timestamp (`tmst`) fields are also modified to be in acceptable ranges and to ensure the timestamps are in order an increment as expected regardless of real gateway (we cant assume timestamps are synchronized if gateway doesnt have GPS).
+The RSSI, SNR, and timestamp (`tmst`) fields are also modified to be in acceptable ranges and to ensure the timestamps are in order and increment as expected regardless of real gateway (we cant assume timestamps are synchronized if gateway doesnt have GPS).
 
 **PULL_RESP** messages received from miners contain data to transmit (usually for device JOINs or PoC).
-These are forwarded unmodified to the gateway with the same MAC address as the virtual gateway interfacing with the miner if it exists and a PULL_DATA was received from the gateway.
+These are forwarded unmodified to the gateway with the same MAC address as the virtual gateway interfacing with the miner, if it exists, and a PULL_DATA was received from the gateway.
 This ensures transmit behavior of a miner remains consistent.  This restriction may be removed in later revisions.
 
-To ensure PULL_RESPs are received by the miners, a fake PUSH_DATA payload is created for every PULL_RESP with simulated RSSI, SNR, and timestamp (currently hardcoded RSSI and SNR).
-This fake PUSH_DATA runs through the same process as real ones except it is not forwarded to the miner that sent the PULL_RESP (so gateways dont hear their own transmissions).
+To ensure PULL_RESPs are received by the other miners, a fake PUSH_DATA payload is created for every PULL_RESP with simulated RSSI, SNR, and timestamp (currently hardcoded RSSI and SNR).
+This fake PUSH_DATA runs through the same process as real ones except it is not forwarded to the miner that sent the PULL_RESP (so gateways don't receive their own transmissions).
 
 All PULL_DATA, PUSH_DATA, and PULL_RESP messages are immediately sent the corresponding ACK regardless of whether the data was actually delivered.
  
