@@ -17,10 +17,10 @@ import datetime as dt
 
 class RXMetadataModification:
     def __init__(self):
-        self.min_rssi = -121
+        self.min_rssi = -120
         self.max_rssi = -90  # valid to 50 miles via FSPL filter
-        self.max_snr = 0.9
-        self.min_snr = -14.5
+        self.max_snr = 1.9
+        self.min_snr = -9.9
         self.tmst_offset = 0
         self.logger = logging.getLogger('RXMeta')
 
@@ -49,6 +49,7 @@ class RXMetadataModification:
         # therefore compare to current time and only trust 'time' field if within 1.5s of now.  If 'time' is not available or
         # cannot be trusted, use the current time as assumed arrival time
         ts_dt = dt.datetime.utcnow()
+        gps_valid = False
         if 'time' in rxpk:
             ts_str = rxpk['time']
             if ts_str[-1] == 'Z':
@@ -56,6 +57,8 @@ class RXMetadataModification:
                 ts_dt = dt.datetime.fromisoformat(ts_str)
             if abs((ts_dt - dt.datetime.utcnow()).total_seconds()) > 1.5:
                 ts_dt = dt.datetime.utcnow()
+            else:
+                gps_valid = True
 
         ts_midnight = dt.datetime(year=ts_dt.year, month=ts_dt.month, day=ts_dt.day, hour=0, minute=0, second=0, microsecond=0)
         elapsed_us = int((ts_dt-ts_midnight).total_seconds() * 1e6)
@@ -68,6 +71,6 @@ class RXMetadataModification:
             tmst_offset = (rxpk['tmst'] - elapsed_us_u32 + 2**32) % 2**32
             #  print(f"updated tmst_offset from:{self.tmst_offset} to {tmst_offset} (error: {self.tmst_offset - tmst_offset})")
             self.tmst_offset = tmst_offset
-        self.logger.debug(f"modified packet from GW {src_mac[-8:]} to vGW {dest_mac[-8:]}, rssi:{old_rssi}->{rxpk['rssi']}, lsnr:{old_snr}->{rxpk['lsnr']:.1f}, tmst:{old_ts}->{rxpk['tmst']}")
+        self.logger.debug(f"modified packet from GW {src_mac[-8:]} to vGW {dest_mac[-8:]}, rssi:{old_rssi}->{rxpk['rssi']}, lsnr:{old_snr}->{rxpk['lsnr']:.1f}, tmst:{old_ts}->{rxpk['tmst']} {'GPS SYNC' if gps_valid else ''}")
         return rxpk
 

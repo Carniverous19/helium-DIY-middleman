@@ -6,6 +6,7 @@ import logging
 import time
 import socket
 import copy
+from hashlib import md5
 
 from src import messages
 from src.vgateway import VirtualGateway
@@ -69,11 +70,14 @@ class GW2Miner:
         :param rxpk: dictionary of rxpk
         :return:
         """
+        hash = md5()
+        hash.update(rxpk['data'].encode())
         key = (
             rxpk['datr'],
             rxpk['codr'],
             str(round(rxpk['freq'], 2)),
-            rxpk['data']
+            rxpk['size'],
+            rxpk['data'] if len(rxpk['data']) < 40 else hash.hexdigest()
         )
         return key
 
@@ -122,13 +126,17 @@ class GW2Miner:
         for rxpk in msg['data']['rxpk']:
 
             key = self.__rxpk_key__(rxpk)
-            if key in self.rxpk_cache:
-                self.vminer_logger.debug(f"repeated packet  [{rxpk.get('size')}B]: {key}")
-                continue
-            if rxpk.get('size') == 80 and rxpk.get('datr') == 'SF10BW125':
-                self.vminer_logger.info(f"new possible challenge [{rxpk.get('size')}B]: {key}")
+
+            if 48 <= rxpk.get('size') <= 80 and rxpk.get('datr') in ['SF8BW125', 'SF9BW125']:
+                if key in self.rxpk_cache:
+                    self.vminer_logger.info(f"repeat chlng. from GW:{msg['MAC'][-8:]} [{rxpk.get('size')}B, {rxpk.get('rssi')}dBm]: {key}; rssi:{rxpk['rssi']:.0f}, snr:{rxpk['lsnr']:.0f}")
+                    continue
+                self.vminer_logger.info(f"new    chlng. from GW:{msg['MAC'][-8:]} [{rxpk.get('size')}B, {rxpk.get('rssi')}dBm]: {key}; rssi:{rxpk['rssi']:.0f}, snr:{rxpk['lsnr']:.0f}")
             else:
-                self.vminer_logger.debug(f"new packet [{rxpk.get('size')}B]: {key}")
+                if key in self.rxpk_cache:
+                    self.vminer_logger.debug(f"repeated packet  [{rxpk.get('size')}B, {rxpk.get('rssi')}dBm]: {key}")
+                    continue
+                self.vminer_logger.debug(f"new packet [{rxpk.get('size')}B, {rxpk.get('rssi')}dBm]: {key}")
             self.rxpk_cache[key] = time.time()
             new_rxpks.append(rxpk)
 
