@@ -129,9 +129,9 @@ class GW2Miner:
 
             if 48 <= rxpk.get('size') <= 80 and rxpk.get('datr') in ['SF8BW125', 'SF9BW125']:
                 if key in self.rxpk_cache:
-                    self.vminer_logger.info(f"repeat chlng. from GW:{msg['MAC'][-8:]} [{rxpk.get('size')}B, {rxpk.get('rssi')}dBm]: {key}; rssi:{rxpk['rssi']:.0f}, snr:{rxpk['lsnr']:.0f}")
+                    self.vminer_logger.info(f"repeat chlng. from GW:{msg['MAC'][-8:]} [{rxpk.get('size')}B]: {key}; rssi:{rxpk['rssi']:.0f}, snr:{rxpk['lsnr']:.0f}")
                     continue
-                self.vminer_logger.info(f"new    chlng. from GW:{msg['MAC'][-8:]} [{rxpk.get('size')}B, {rxpk.get('rssi')}dBm]: {key}; rssi:{rxpk['rssi']:.0f}, snr:{rxpk['lsnr']:.0f}")
+                self.vminer_logger.info(f"new    chlng. from GW:{msg['MAC'][-8:]} [{rxpk.get('size')}B]: {key}; rssi:{rxpk['rssi']:.0f}, snr:{rxpk['lsnr']:.0f}")
             else:
                 if key in self.rxpk_cache:
                     self.vminer_logger.debug(f"repeated packet  [{rxpk.get('size')}B, {rxpk.get('rssi')}dBm]: {key}")
