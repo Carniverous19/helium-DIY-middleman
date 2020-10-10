@@ -18,7 +18,7 @@ Some functional versions may be tagged and you may want to pull those
 
     git clone https://github.com/Carniverous19/helium-DIY-middleman.git
  
- The only dependency is Python 3.6+
+ The only dependency is Python 3.7+ (developed and tested on 3.8.2)
     
 ## Usage instructions
 To run use the following command
