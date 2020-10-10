@@ -34,20 +34,26 @@ class GW2Miner:
                 if 'gateway_ID' not in config or 'server_address' not in config:
                     self.vgw_logger.error(f"invalid config file {path}, missing required parameters")
                     continue
+                try:
+                    server_ip = socket.gethostbyname(config.get('server_address'))
+                except socket.gaierror:
+                    self.vgw_logger.error(f"invalid server_address \"{config.get('server_address')}\" in config {path}")
+                    continue
                 for i in range(0, len(config.get('gateway_ID')), 2):
                     mac += config.get('gateway_ID')[i:i+2] + ':'
                 mac = mac[:-1].upper()
 
                 vgw = VirtualGateway(
                         mac=mac,
-                        server_address=config.get('server_address'),
+                        server_address=server_ip,
                         port_dn=config.get('serv_port_down'),
                         port_up=config.get('serv_port_up')
                     )
                 self.vgateways_by_mac[mac] = vgw
-                self.vgateways_by_addr[(config.get('server_address'), config.get('serv_port_down'))] = vgw
-                self.vgateways_by_addr[(config.get('server_address'), config.get('serv_port_up'))] = vgw
 
+                self.vgateways_by_addr[(server_ip, config.get('serv_port_down'))] = vgw
+                self.vgateways_by_addr[(server_ip, config.get('serv_port_up'))] = vgw
+                self.vgw_logger.info(f"added vgateway for miner at {server_ip} port: {config.get('serv_port_up')}(up)/{config.get('serv_port_down')}(dn)")
         # start listening socket
         # =============================
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

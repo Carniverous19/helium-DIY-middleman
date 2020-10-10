@@ -105,4 +105,4 @@ class VirtualGateway:
             MAC=self.mac
         )
         payload_raw = encode_message(payload)
-        return payload_raw, (self.server_address, self.port_up)
+        return payload_raw, (self.server_address, self.port_dn)
