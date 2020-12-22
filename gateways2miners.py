@@ -134,16 +134,32 @@ class GW2Miner:
 
             key = self.__rxpk_key__(rxpk)
 
-            if 48 <= rxpk.get('size') <= 80 and rxpk.get('datr') in ['SF8BW125', 'SF9BW125']:
-                if key in self.rxpk_cache:
-                    self.vminer_logger.info(f"repeat chlng. from GW:{msg['MAC'][-8:]} [{rxpk.get('size')}B]: {key}; rssi:{rxpk['rssi']:.0f}, snr:{rxpk['lsnr']:.0f}")
-                    continue
-                self.vminer_logger.info(f"new    chlng. from GW:{msg['MAC'][-8:]} [{rxpk.get('size')}B]: {key}; rssi:{rxpk['rssi']:.0f}, snr:{rxpk['lsnr']:.0f}")
+            is_duplicate = key in self.rxpk_cache
+            description = f"from GW:{msg['MAC'][-8:]} [{rxpk.get('size')}B]: {key}; rssi:{rxpk['rssi']:.0f}dBm, snr:{rxpk['lsnr']:.0f}"
+
+            if packet_is_poc_challenge(rxpk):
+                log_level = 'info'
+                if is_duplicate:
+                    classification = 'repeat chlng.'
+                else:
+                    classification = 'new    chlng.'
             else:
-                if key in self.rxpk_cache:
-                    self.vminer_logger.debug(f"repeated packet  [{rxpk.get('size')}B, {rxpk.get('rssi')}dBm]: {key}")
-                    continue
-                self.vminer_logger.debug(f"new packet [{rxpk.get('size')}B, {rxpk.get('rssi')}dBm]: {key}")
+                log_level = 'debug':
+                if is_duplicate:
+                    classification = 'repeated packet'
+                else:
+                    classification = 'new packet'
+
+            if log_level == 'info':
+                log = self.vminer_logger.info
+            else:
+                log = self.vminer_logger.debug
+
+            log(f"{classification} {desc}")
+
+            if is_duplicate:
+                continue
+
             self.rxpk_cache[key] = time.time()
             new_rxpks.append(rxpk)
 
@@ -265,6 +281,10 @@ class GW2Miner:
 
     def __del__(self):
         self.sock.close()
+
+
+def packet_is_poc_challenge(rxpk: dict):
+    return rxpk.get('size') == 52 and rxpk.get('datr') == 'SF9BW125'
 
 
 def configure_logger(debug=False):
