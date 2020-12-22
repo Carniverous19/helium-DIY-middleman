@@ -286,6 +286,7 @@ def main():
     parser.add_argument('-d', '--debug', action='store_true', help="print verbose debug messages")
     parser.add_argument('-k', '--keepalive', help='keep alive interval in seconds', default=10, type=int)
     parser.add_argument('-s', '--stat', help='stat interval in seconds', default=30, type=int)
+    parser.add_argument('-t', '--tx-adjust', help='adjust transmit power by some constant (in dB).', type=float, metavar='<adjustment-db>')
 
     args = parser.parse_args()
 
