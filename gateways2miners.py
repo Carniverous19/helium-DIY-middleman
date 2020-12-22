@@ -14,11 +14,12 @@ from src.vgateway import VirtualGateway
 
 
 class GW2Miner:
-    def __init__(self, port, vminer_configs_paths, keepalive_interval=10, stat_interval=30, debug=True):
+    def __init__(self, port, vminer_configs_paths, keepalive_interval=10, stat_interval=30, debug=True, tx_power_adjustment=0.0):
 
 
         self.vgw_logger = logging.getLogger('VGW')
         self.vminer_logger = logging.getLogger('VMiner')
+        self.tx_power_adjustment = tx_power_adjustment
 
         # load virtual gateways configs
         # =============================
@@ -177,6 +178,9 @@ class GW2Miner:
         if not dest_addr:
             self.vgw_logger.warning(f"PULL_RESP from {addr} has no matching real gateway, will only be received by Virtual Miners")
         txpk = msg['data'].get('txpk')
+
+        txpk = self.adjust_tx_power(txpk)
+
         rawmsg = messages.encode_message(msg)
         if dest_addr:
             self.sock.sendto(rawmsg, dest_addr)
@@ -255,6 +259,10 @@ class GW2Miner:
             data, addr = gw.get_PULL_DATA()
             self.sock.sendto(data, addr)
 
+    def adjust_tx_power(self, pk: dict):
+        pk['powe'] += self.tx_power_adjustment
+        return pk
+
     def __del__(self):
         self.sock.close()
 
@@ -286,7 +294,7 @@ def main():
     parser.add_argument('-d', '--debug', action='store_true', help="print verbose debug messages")
     parser.add_argument('-k', '--keepalive', help='keep alive interval in seconds', default=10, type=int)
     parser.add_argument('-s', '--stat', help='stat interval in seconds', default=30, type=int)
-    parser.add_argument('-t', '--tx-adjust', help='adjust transmit power by some constant (in dB).', type=float, metavar='<adjustment-db>')
+    parser.add_argument('-t', '--tx-adjust', help='adjust transmit power by some constant (in dB).', type=float, metavar='<adjustment-db>', default=0.0)
 
     args = parser.parse_args()
 
@@ -299,7 +307,8 @@ def main():
         if os.path.isfile(os.path.join(args.configs, f)) and f[-4:].lower() == 'json':
             config_paths.append(os.path.join(args.configs, f))
 
-    gw2miner = GW2Miner(args.port, config_paths, args.keepalive, args.stat)
+    gw2miner = GW2Miner(args.port, config_paths, args.keepalive, args.stat
+        args.tx_adjust)
     logging.info(f"starting Gateway2Miner")
     try:
         gw2miner.run()
