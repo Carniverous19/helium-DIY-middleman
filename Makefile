@@ -14,8 +14,8 @@ install: run.sh middleman.service $(PY_SOURCES)
 	install run.sh $(DESTROOT)
 	install middleman.service /etc/systemd/system
 
-#
-# Recipe to create a text file named X from a template named X.in.
-#
-%: %.in
+run.sh: run.sh.in
+	sed -e s,@@DESTROOT@@,$(DESTROOT),g < $< > $@
+
+middleman.service: middleman.service.in
 	sed -e s,@@DESTROOT@@,$(DESTROOT),g < $< > $@
