@@ -8,6 +8,7 @@ DESTROOT?= /home/middleman
 
 install: run.sh middleman.service $(PY_SOURCES)
 	mkdir -p $(DESTROOT)
+	mkdir -p $(DESTROOT)/src
 	for pysrc in $(PY_SOURCES); do \
 		install $$pysrc $(DESTROOT)/$$pysrc; \
 	done
