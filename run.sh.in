@@ -1,0 +1,16 @@
+#!/bin/sh
+[ -f @@DESTROOT@@/middleman.conf ] && . @@DESTROOT@@/middleman.conf
+
+: ${middleman_home="@@DESTROOT@@"}
+: ${middleman_config_dir="${middleman_home}/configs"}
+: ${middleman_script="${middleman_home}/gateways2miners.py"}
+: ${middleman_python="python3"}
+: ${middleman_port=1681}
+
+cd ${middleman_home}
+exec ${middleman_python} \
+	${middleman_script} \
+	-c ${middleman_config_dir} \
+	-p ${middleman_port} \
+	-d \
+	${middleman_args}

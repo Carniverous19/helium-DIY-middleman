@@ -1,0 +1,9 @@
+[Unit]
+Description=Helium radio adjustment middleman
+
+[Service]
+ExecStart=@@INSTALLDIR@@/run.sh
+WorkingDirectory=@@INSTALLDIR@@
+
+[Install]
+WantedBy=multi-user.target
