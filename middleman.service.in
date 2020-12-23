@@ -2,8 +2,8 @@
 Description=Helium radio adjustment middleman
 
 [Service]
-ExecStart=@@INSTALLDIR@@/run.sh
-WorkingDirectory=@@INSTALLDIR@@
+ExecStart=@@DESTROOT@@/run.sh
+WorkingDirectory=@@DESTROOT@@
 
 [Install]
 WantedBy=multi-user.target
