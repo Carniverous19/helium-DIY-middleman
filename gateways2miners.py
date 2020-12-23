@@ -146,7 +146,7 @@ class GW2Miner:
                 else:
                     classification = 'new    chlng.'
             else:
-                log_level = 'debug':
+                log_level = 'debug'
                 if is_duplicate:
                     classification = 'repeated packet'
                 else:
