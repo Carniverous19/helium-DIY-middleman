@@ -65,9 +65,29 @@ having to modify the source code, the startup scripts will check for a text
 file named `/home/middleman/middleman.conf`, which can contain the following
 settings.
 
-    middleman_python=
-    middleman_args=
-    etc.
+* `middleman_config_dir`
+
+  The directory in which `middleman` should search for its
+  upstream gateway configurations.  (See the **Configuration files for
+  middleman** section).
+
+  Default: `/home/middleman/configs`
+
+* `middleman_python`
+
+  The python interpreter to use when starting `middleman` if you need
+  a very specific version to be used, or if it is installed in an unusual
+  path.
+
+  Default: `python3`
+
+* `middleman_port`
+
+  The UDP port on which `middleman` should listen for incoming packets
+  from gateways.
+
+  Default: `1681`
+
 
 #### Enabling via systemd
 
