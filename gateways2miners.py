@@ -157,7 +157,7 @@ class GW2Miner:
             else:
                 log = self.vminer_logger.debug
 
-            log(f"{classification} {desc}")
+            log(f"{classification} {description}")
 
             if is_duplicate:
                 continue
