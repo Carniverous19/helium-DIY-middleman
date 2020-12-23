@@ -4,6 +4,7 @@ Description=Helium radio adjustment middleman
 [Service]
 ExecStart=@@DESTROOT@@/run.sh
 WorkingDirectory=@@DESTROOT@@
+Restart=always
 
 [Install]
 WantedBy=multi-user.target
