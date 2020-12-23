@@ -13,15 +13,25 @@ One gateway has a 16dBi yagi for long reach and is receive only.
 One gateway has an 11dBi panel antenna facing out a window on the west side of my building to receive from gateways the omni cannot hear due to building obstruction.
 
 ## Installation Instructions
+
+There are two ways to use this code. The first way is to run it manually, while
+the second way is to install it in the system and have it be run by `systemd`.
+These options are described in detail in the following subsections.
+
+In both cases, however, you must first clone the repository.
+
+### Cloning
+
 Clone this repository.  Note daily, maybe breaking changes may be pushed to master at any time.  
 Some functional versions may be tagged and you may want to pull those
 
-    git clone https://github.com/Carniverous19/helium-DIY-middleman.git
+    git clone **<FIX-ME-I-AM-A-FORK>**/helium-DIY-middleman.git
  
  The only dependency is Python 3.7+ (developed and tested on 3.8.2)
     
-## Usage instructions
-To run use the following command
+### Manual Startup
+
+To run the code manually, use the following command
 
     python3 gateways2miners.py -p 1680 -c ./gateways
     
@@ -32,6 +42,40 @@ Run
 
     python3 gateways2miners.py -h
 for additional info on parameters and their meaning
+
+### Permanent Installation and Startup
+
+For more reliable and permanent operation, you can also install middleman in
+its own working directory and have it started up by your system automatically
+via `systemd`.  To do so, you must run
+
+    sudo make install
+
+This will install the source code and other necessary items in a new directory,
+`/home/middleman`. If you wish to have middleman installed in a different
+directory, run this modified version of the installation command:
+
+    sudo make DESTROOT=/different/directory install
+
+#### Run-time configuration
+
+There are several options that you may wish to change about middleman's startup
+behavior in a permanent installation. To make these eaiser to control without
+having to modify the source code, the startup scripts will check for a text
+file named `/home/middleman/middleman.conf`, which can contain the following
+settings.
+
+    middleman_python=
+    middleman_args=
+    etc.
+
+#### Enabling via systemd
+
+Once installed, you will need to tell `systemd` that you'd like middleman to
+automatically start every time the system is brought up. Do so by running
+
+    sudo systemctl enable middleman
+
 
 ### Configuration files for middleman
 The configuration files are the same used by the semtech packet forwarder but only require a subset of fields.  A minimal example is:
