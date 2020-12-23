@@ -17,6 +17,5 @@ install: run.sh middleman.service $(PY_SOURCES)
 #
 # Recipe to create a text file named X from a template named X.in.
 #
-middleman.service: middleman.service.in
-run.sh: run.sh.in
+%: %.in
 	sed -e s,@@DESTROOT@@,$(DESTROOT),g < $< > $@
