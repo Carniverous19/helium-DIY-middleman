@@ -88,6 +88,20 @@ settings.
 
   Default: `1681`
 
+* `middleman_args`
+
+  Additional arguments to pass to middleman when running. Make sure to
+  use double quotes when setting this variable.
+  
+  Default: (none)
+ 
+#### Example configuration
+
+An example `middleman.conf` file might read:
+
+    middleman_python=/usr/bin/python3.8
+    middleman_port=1682
+    middleman_args="--tx-adjust -4.0"
 
 #### Enabling via systemd
 
