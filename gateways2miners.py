@@ -325,13 +325,15 @@ def main():
 
     logging.info(f"info log messages are enabled")
     logging.debug(f"debug log messages are enabled")
+    logging.debug(f"startup arguments: {args}")
+
     config_paths = []
     for f in os.listdir(args.configs):
         if os.path.isfile(os.path.join(args.configs, f)) and f[-4:].lower() == 'json':
             config_paths.append(os.path.join(args.configs, f))
 
     gw2miner = GW2Miner(args.port, config_paths, args.keepalive, args.stat,
-        args.tx_adjust, args.rx_adjust)
+        args.debug, args.tx_adjust, args.rx_adjust)
     logging.info(f"starting Gateway2Miner")
     try:
         gw2miner.run()
