@@ -132,3 +132,5 @@ dmypy.json
 # custom
 *.json
 *.log
+middleman.service
+run.sh
