@@ -1,21 +1,14 @@
 # helium-DIY-middleman
+Initially this was written by folks who know what they're doing.  I more or less don't, but guided by wizards I managed to muddle through.  You can do the same.
+
 Code here acts as a middleman between LoRa gateways running Semtech packet forwarders and servers ingesting packet forwarder data.
-You would run this code instead of directly pointing gateways to miners for a few possible reasons:
 
-- You want to send data from one gateway to multiple on-chain miners to potentially increase earnings by increasing witnessing and potential selection for "next hop" in PoC
-- You have multiple DIY gateways but only a single on-chain DIY miner (in alpha program).  you can route data from all of your gateways to your single miner increasing the ability to receive data, challenges, etc.
-- You have a gateway not located at its asserted location and you want to modify received metadata to avoid PoCv9/v10 thresholds.  
-- Any combination of the above.
-
-To test this capability I currently have 3 gateways (RAK2245, RAK2247 and RAK2287) all sharing data with six miners.
-One gateway has a 8dBi omni on the east side of my building near the roofline, this is used for receive and transmit.
-One gateway has a 16dBi yagi for long reach and is receive only. 
-One gateway has an 11dBi panel antenna facing out a window on the west side of my building to receive from gateways the omni cannot hear due to building obstruction.
+I run it because I have antennas with higher than stock gain (6, 9, and 13 db), and currently (Dec 2020) Helium rules make it so many tx and rx are invalid with higher gain antennas.
 
 ## Installation Instructions
 
 There are two ways to use this code. The first way is to run it manually, while
-the second way is to install it in the system and have it be run by `systemd`.
+the second way is to install it in the system and have it be run by `systemd`.  I have it run by systemd because it, at least, knows what it's doing.
 These options are described in detail in the following subsections.
 
 In both cases, however, you must first clone the repository.
@@ -25,7 +18,7 @@ In both cases, however, you must first clone the repository.
 Clone this repository.  Note daily, maybe breaking changes may be pushed to master at any time.  
 Some functional versions may be tagged and you may want to pull those
 
-    git clone **<FIX-ME-I-AM-A-FORK>**/helium-DIY-middleman.git
+    git clone https://github.com/curiousfokker/helium-DIY-middleman.git
  
  The only dependency is Python 3.7+ (developed and tested on 3.8.2)
     
@@ -41,6 +34,7 @@ It will also create a virtual gateway that communicates with a miner based on al
 Run
 
     python3 gateways2miners.py -h
+
 for additional info on parameters and their meaning
 
 ### Permanent Installation and Startup
@@ -57,11 +51,86 @@ directory, run this modified version of the installation command:
 
     sudo make DESTROOT=/different/directory install
 
-#### Run-time configuration
+#### Run-time configuration & example set up
 
 There are several options that you may wish to change about middleman's startup
 behavior in a permanent installation. To make these eaiser to control without
-having to modify the source code, the startup scripts will check for a text
+having to modify the source code, you'll need to create configs directory and then config.json file in home/middleman.
+
+Do this in the directory /middleman (which was created with the git pull.)
+
+* `sudo mkdir configs`
+* `cd configs`
+* `nano config.json`
+
+Then copy/paste in this:
+
+```{
+        "gateway_conf": {
+                "gateway_ID": "AA555A0000000000",
+                "server_address": "localhost",
+                "serv_port_up": 1680,
+                "serv_port_down": 1680
+         }
+}
+```
+If you've got a local.conf file in your packet forwarder (miner & gateway on same device, like a RAK7244), make sure the gateway_ID in that copy/paste matches it. 
+
+Now you'll need to make the middleman.conf file.  In /middleman
+
+`sudo nano middleman.conf`
+
+Then enter your arguments.
+Example 1 (for a Nearson 9 db anteanna)  `middleman_args="--rx-adjust -9” `
+Example 2 (an antenna over 13 db) `middleman_args="--tx-adjust -4 --rx-adjust -13"`
+
+Next we'll enable Middleman:
+
+`sudo systemctl enable middleman`
+and then reboot the miner.  You might not have to reboot.  I did it anyway.
+`% sudo reboot`
+
+Now, over in the Gateway you're going to change the UDP port from the default (1680) to that of Middlema (1681).  This tells the gateway to talk to Middleman instead of the miner.  First, on your gateway check to see where your packet forwarder config file is.
+
+`ps -efww | grep lora_pkt`
+
+In my gateway the path is ` /sx1302_hal/bin/ `
+
+Once you're in the bin (or whatever directory you found the packet forwarder config file), then
+
+`cp global_conf.json global_conf.json.old`
+
+This makes a copy of your old global_conf settings in case you want to revert back to them.  With a backup made, nothing could possibly go wrong. It's time to change things up!
+
+`sudo nano global_conf.json`
+
+In there (probably down at the bottom) look for `serv_port_up: 1680` and `serv_port_down: 1680` and change the 1680 --> 1681.
+
+Now your gateway is pointing to Middleman instead of to your miner.  
+
+Reboot your gateway.
+
+`sudo reboot`
+then make sure you've restarted the lora_pkt_fwd.service with
+
+`sudo systemctl restart lora_pkt_fwd.service`
+
+Now, back on your miner:
+
+`sudo systemctl start middleman`
+
+Check your work with:
+
+`systemctl status middleman`
+
+and
+
+`sudo journalctl -u middleman`
+
+this mirrors the output of the middleman.log file and you can use the command `q` to quit it.
+
+
+The startup scripts will check for a text
 file named `/home/middleman/middleman.conf`, which can contain the following
 settings.
 
@@ -125,8 +194,10 @@ The configuration files are the same used by the semtech packet forwarder but on
 
 Each gateway should have a unique `"gateway_ID"` or MAC address.
 These will be the MAC addresses of the virtual gateways that interface with miners.
-These don't have to match the MAC address of any physical gateway but if they dont it means they cannot transmit actual RF packets.  The corresponding miner would be *receive only*.
+These don't have to match the MAC address of any physical gateway but if they dont it means they cannot transmit actual RF packets.  The corresponding miner would be *receive only*.  This is what'll nip ya if you don't set the "gateway_ID" to match your local_conf file settings on your gateway.  Ask me how I know.
+
 If you want transmit commands from a miner to actually be transmitted over LoRa the `"gateway_ID"` should match the MAC address for one of the physical gateways sending data to this software.
+
 This limitation can be removed with additional software to allow independently mapping miners to transmitting gateways.
 
 Note: all received packets from any gateway will be sent to ALL miners but transmit commands from a miner will be sent to at most one gateway.
@@ -134,41 +205,6 @@ Note: all received packets from any gateway will be sent to ALL miners but trans
 ### Configuration files for gateways
 Each physical gateway should have a unique `gateway_ID`.  These don't have to match with any virtual gateway.  See limitations mentioned above for why you may want to match a virtual gateway MAC address.
 The `serv_port_up` and `serv_port_down` of each gateway should match the port you set with the `-p` or `--port` arguement when starting `gateways2miners.py`.
-
-### Example Setup
-This guide assumes you have a single DIY hotspot running the semtech packet fowarding software per Helium Inc's [Build a Hotspot](https://developer.helium.com/hotspot/developer-setup) guide.
-And also that you have a Miner running per Helium Inc's [Run Your Own Miner](https://developer.helium.com/blockchain/run-your-own-miner) guide.  Lets assume the miner is at IP address 18.218.135.176 and that you already verified the miner and gateway are communicating.
-
-Also assume this software is running on an independent computer, either an additional raspberry pi or your laptop, etc.  Assume the computer running this `gateways2miners.py` code has IP address 192.168.1.100.
-
-To start using this software perform the following:
-- Go a command line on the gateway and copy the file `packet_forwarder/lora_pkt_fwd/global_conf.json` to `global_conf.json.old` to keep as a backup.
-- Find the line `"server_address": "18.218.135.176"` in the  `global_conf.json` file and change it to `"server_address": "192.168.0.100"`.
-    Now your gateway is pointing to this middleman software instead of directly to your miner.
-- Also in `global_conf.json` (or possibly in `local_conf.json` if it exists) find the line `gateway_ID` and record the value. (example:`"gateway_ID": "AA555A0000001234"`)
-- Go the computer where you want to run the middleman software and create a folder in your home directory called `gateways` and change directory into the newly created folder:
-
-    
-    cd ~
-    mkdir gateways
-    cd gateways
-
-- you can either copy the original `global_conf.json.old` file from the gateway and put it in this directory (deleting .old from the filename). or create a new config file and add the required lines:
-
-    
-    nano gateway1.json
-
-The contents of `gateway1.json` should match whats shown below.  Note you need to change gateway_ID and server_address to match your original config files form the gateway:
-
-    {
-      "gateway_conf": {
-        "gateway_ID": "AA555A0000001234",   /*This should match the gateway_ID you recorded*/
-        "server_address": "18.218.135.176", /*This should match the IP of your miner*/
-        "serv_port_up": 1680,
-        "serv_port_down": 1680
-      }
-    }
-
 
 
 ## How It Works
