@@ -88,7 +88,8 @@ Next we'll enable Middleman:
 
 `sudo systemctl enable middleman`
 and then reboot the miner.  You might not have to reboot.  I did it anyway.
-`% sudo reboot`
+
+`sudo reboot`
 
 Now, over in the Gateway you're going to change the UDP port from the default (1680) to that of Middlema (1681).  This tells the gateway to talk to Middleman instead of the miner.  First, on your gateway check to see where your packet forwarder config file is.
 
@@ -106,11 +107,12 @@ This makes a copy of your old global_conf settings in case you want to revert ba
 
 In there (probably down at the bottom) look for `serv_port_up: 1680` and `serv_port_down: 1680` and change the 1680 --> 1681.
 
-Now your gateway is pointing to Middleman instead of to your miner.  
+Now your gateway is pointing to Middleman (1681) instead of to your miner (1680).  
 
 Reboot your gateway.
 
 `sudo reboot`
+
 then make sure you've restarted the lora_pkt_fwd.service with
 
 `sudo systemctl restart lora_pkt_fwd.service`
@@ -129,6 +131,7 @@ and
 
 this mirrors the output of the middleman.log file and you can use the command `q` to quit it.
 
+#### Details & What the Startup Scripts Do
 
 The startup scripts will check for a text
 file named `/home/middleman/middleman.conf`, which can contain the following
