@@ -10,7 +10,7 @@ I run it because I have antennas with higher than stock gain (6, 9, and 13 db), 
 There are two ways to use this code. The first way is to run it manually, while
 the second way is to install it in the system and have it be run by `systemd`.  If you want to run it manually, go back to Carniverous19's original code.    
 
-I have it run by systemd because that, at least, knows what it's doing.  
+These instructions are for running it automatically with `systemd`.  
 
 ### Cloning
 
