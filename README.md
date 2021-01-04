@@ -56,7 +56,7 @@ Then copy/paste in this:
 }
 ```
 
-IMPORTANT:  If you've got a local.conf file in your packet forwarder (miner & gateway on same device, like a RAK7244), make sure the gateway_ID above matches what's in the packet forwarder.   
+IMPORTANT:  Make sure the gateway_ID above matches what's in the packet forwarder's global_conf.json and, if it exists, local_conf.json.   
 
 Next, make the middleman.conf file in /middleman. 
 
