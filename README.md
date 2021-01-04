@@ -1,14 +1,16 @@
 # Middleman for Helium
 Initially this was written by folks who know what they're doing.  I more or less don't, but guided by wizards I managed to muddle through.  You can do the same.
 
-Code here acts as a middleman between LoRa gateways running Semtech packet forwarders and servers ingesting packet forwarder data.
+Code here acts as a middleman between LoRa gateways running Semtech packet forwarders and servers ingesting packet forwarder data.  For you non-geeks, what this code does is tell your miner to report different signals to the blockchain than what the packet forwarder is actually receiving.  
 
-I run it because I have antennas with higher than stock gain (6, 9, and 13 db), and currently (Jan 2020) Helium rules make it so many tx and rx are invalid with higher gain antennas.
+I run it because I have antennas with higher than stock gain (6, 9, and 13 db), and currently (Jan 2020) Helium rules make it so many tx and rx are invalid with higher gain antennas.  Those rules are why many times a higher gain antenna (like a Nearson 9) will perform worse than a lower gain antenna.  
+
+This could technically be considered gaming.  So there's that.  I consider it a way to provide the network with a service and earn reward commensurate with the service.  
 
 ## Installation Instructions
 
 There are two ways to use this code. The first way is to run it manually, while
-the second way is to install it in the system and have it be run by `systemd`.  If you want to run it manually, go back to Carniverous19's original code.    
+the second way is to install it in the system and have it be run by `systemd`.  If you want to run it manually, you are sophisticated enough to figure it out from Carniverous19's code and don't need this.  For the rest of us enthusiasts...      
 
 These instructions are for running it automatically with `systemd`.  
 
@@ -22,29 +24,26 @@ Clone this repository onto the machine running your miner.
     
 ### Installation and Startup
 
-Install Middleman in its own working directory on your miner and have it started up by your system automatically
-via `systemd`.  To do so, you must run
+On your miner, install Middleman in its own working directory.    
 
     sudo make install
 
 This will install the source code and other necessary items in a new directory,
 `/home/middleman`. 
 
-#### Set Up
-
-There are several options that you may wish to change about middleman's startup
-behavior in a permanent installation. To make these easier to control without
-having to modify the source code, you'll need to create a Configs directory and then a config.json file in home/middleman.  
 
 #### Middleman Settings
 
 In the directory /middleman (which was created with the git pull.)
 
-* `sudo mkdir configs`
+* `sudo mkdir configs`. 
+This creates your configs directory.  Now change into that directory:  
+
 * `cd configs`
+and create the config file:  
 * `nano config.json`
 
-Then copy/paste in this:
+Then copy/paste in this into the config.json:
 
 ```{
         "gateway_conf": {
@@ -54,19 +53,23 @@ Then copy/paste in this:
                 "serv_port_down": 1680
          }
 }
-```
+``` 
+  
+IMPORTANT:  Make sure the gateway_ID above matches what's in the packet forwarder's global_conf.json and, if it exists, local_conf.json. 
 
-IMPORTANT:  Make sure the gateway_ID above matches what's in the packet forwarder's global_conf.json and, if it exists, local_conf.json.   
+Great, so now you've told Middleman where to "listen" when it comes to the miner.  
 
-Next, make the middleman.conf file in /middleman. 
+Next, make the middleman.conf file in /middleman and tell it what to do with what it hears from the packet forwarder. 
 
 `sudo nano middleman.conf`. 
 
 Then enter your arguments.  
-Example 1 (for a Nearson 9 db antenna where you'd want to drop the rx receipts by 9)  `middleman_args="--rx-adjust -9” `. 
+Example 1 (for a Nearson 9 db antenna where you'd want to drop the rx receipts by 9)  
+`middleman_args="--rx-adjust -9” `. 
+  
 Example 2 (an antenna over 13 db where you need to drop the tx by 4 in order to not break FSPL and adjust the RX by 13 to keep within RSSI boundaries) `middleman_args="--tx-adjust -4 --rx-adjust -13"`. 
 
-Next we'll enable Middleman on the miner:
+Next, we'll enable Middleman on the miner:
 
 `sudo systemctl enable middleman`. 
 
@@ -90,7 +93,7 @@ With a backup made, nothing could possibly go wrong. It's time to change things 
 
 `sudo nano global_conf.json`
 
-In there (probably down at the bottom) look for this:  
+In there (probably way down at the bottom) look for this:  
 
 ``` 
 "gateway_conf": {
@@ -107,7 +110,7 @@ In there (probably down at the bottom) look for this:
         "forward_crc_valid": true,
 ```
 
-Then on the 4th & 5th line down, change:  
+Then on the 4th & 5th line down, change the ports:  
 `serv_port_up: 1680` and `serv_port_down: 1680` from 1680 --> 1681.  
 
 Now your gateway is pointing to Middleman (1681) instead of to your miner (1680).  
@@ -116,11 +119,11 @@ Reboot your gateway.
 
 `sudo reboot`
 
-Make sure you've restarted the lora_pkt_fwd.service with:  
+You MAY need to restart the lora_pkt_fwd.service with:  
 
 `sudo systemctl restart lora_pkt_fwd.service`
 
-Now that the gateway is directed to your miner, you'll need to start Middleman on the miner, so.  
+Now that the gateway is directed to your miner, you'll need to start Middleman on the miner, so:    
 
 #### Back on your Miner:
 
@@ -170,11 +173,7 @@ settings.
   Additional arguments to pass to middleman when running. Make sure to
   use double quotes when setting this variable.
   
-  Default: (none)
  
-
-
-
 ## How It Works
 This software listens for UDP datagrams on the specified port (defaults to `1680`).  
 datagrams received on this port may be from gateways (PULL_DATA, PUSH_DATA, TX_ACK) or from miners (PULL_ACK, PUSH_ACK, PULL_RESP).
@@ -213,11 +212,8 @@ To send valid stats messages each virtual gateway keeps track of the number of P
   - Security: this code is vulnerable to lots of attacks.  One possible attack is spoofing gateways.
   
 ## Disclaimers
-
+ - This is technically considered gaming.  
  - I have done very little testing.  
- I did run some fake data simulating multiple gateways and miners but I would want to do significantly more testing.
- I did check transmissions (from miner out gatways) using semtech's `util_tx_test`.
- Additionally I verified RX and TX with an on-chain DIY miner that earns for witnessing and PoC transmissions.
  - Software is 100% proof of concept.  No guarantees on reliability or accuracy only use for testing
  - This software can be used for "gaming" or "exploits".  Part of creating this software is to demo these exploits to encourage community discussion, expose limitations, and be a weak test for any exploit fixes.
    You should only use this software for testing purposes and not for widespread gaming or exploitation of the Helium network.
