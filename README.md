@@ -51,13 +51,15 @@ directory, run this modified version of the installation command:
 
     sudo make DESTROOT=/different/directory install
 
-#### Run-time configuration & example set up
+#### Set Up
 
 There are several options that you may wish to change about middleman's startup
 behavior in a permanent installation. To make these eaiser to control without
 having to modify the source code, you'll need to create configs directory and then config.json file in home/middleman.
 
-Do this in the directory /middleman (which was created with the git pull.)
+#### Middleman Settings
+
+In the directory /middleman (which was created with the git pull.)
 
 * `sudo mkdir configs`
 * `cd configs`
@@ -74,22 +76,24 @@ Then copy/paste in this:
          }
 }
 ```
-If you've got a local.conf file in your packet forwarder (miner & gateway on same device, like a RAK7244), make sure the gateway_ID in that copy/paste matches it. 
 
-Now you'll need to make the middleman.conf file.  In /middleman
+IMPORTANT:  If you've got a local.conf file in your packet forwarder (miner & gateway on same device, like a RAK7244), make sure the gateway_ID above matches what's in the packet forwarder. 
+
+Next, make the middleman.conf file.  
+In /middleman
 
 `sudo nano middleman.conf`
 
-Then enter your arguments.
-Example 1 (for a Nearson 9 db anteanna)  `middleman_args="--rx-adjust -9” `
-Example 2 (an antenna over 13 db) `middleman_args="--tx-adjust -4 --rx-adjust -13"`
+Then enter your arguments.  
+Example 1 (for a Nearson 9 db anteanna)  `middleman_args="--rx-adjust -9” `. 
+Example 2 (an antenna over 13 db) `middleman_args="--tx-adjust -4 --rx-adjust -13"`. 
 
 Next we'll enable Middleman:
 
-`sudo systemctl enable middleman`
+`sudo systemctl enable middleman`. 
 and then reboot the miner.  You might not have to reboot.  I did it anyway.
 
-`sudo reboot`
+`sudo reboot`. 
 
 Now, over in the Gateway you're going to change the UDP port from the default (1680) to that of Middlema (1681).  This tells the gateway to talk to Middleman instead of the miner.  First, on your gateway check to see where your packet forwarder config file is.
 
@@ -105,7 +109,25 @@ This makes a copy of your old global_conf settings in case you want to revert ba
 
 `sudo nano global_conf.json`
 
-In there (probably down at the bottom) look for `serv_port_up: 1680` and `serv_port_down: 1680` and change the 1680 --> 1681.
+In there (probably down at the bottom) look for this:  
+
+``` 
+"gateway_conf": {
+        "gateway_ID": "AA555A0000000101",
+        /* change with default server address/ports, or overwrite in local_conf.json */
+        "server_address": "localhost",
+        "serv_port_up": 1681,
+        "serv_port_down": 1681,
+        /* adjust the following parameters for your network */
+        "keepalive_interval": 10,
+        "stat_interval": 30,
+        "push_timeout_ms": 100,
+        /* forward only valid packets */
+        "forward_crc_valid": true,
+```
+
+Then change
+`serv_port_up: 1680` and `serv_port_down: 1680` from 1680 --> 1681.
 
 Now your gateway is pointing to Middleman (1681) instead of to your miner (1680).  
 
@@ -167,47 +189,7 @@ settings.
   
   Default: (none)
  
-#### Example configuration
 
-An example `middleman.conf` file might read:
-
-    middleman_python=/usr/bin/python3.8
-    middleman_port=1682
-    middleman_args="--tx-adjust -4.0"
-
-#### Enabling via systemd
-
-Once installed, you will need to tell `systemd` that you'd like middleman to
-automatically start every time the system is brought up. Do so by running
-
-    sudo systemctl enable middleman
-
-
-### Configuration files for middleman
-The configuration files are the same used by the semtech packet forwarder but only require a subset of fields.  A minimal example is:
-
-    {
-      "gateway_conf": {
-        "gateway_ID": "AA555A0000000002",
-        "server_address": "127.0.0.1",
-        "serv_port_up": 1680,
-        "serv_port_down": 1680
-      }
-    }
-
-Each gateway should have a unique `"gateway_ID"` or MAC address.
-These will be the MAC addresses of the virtual gateways that interface with miners.
-These don't have to match the MAC address of any physical gateway but if they dont it means they cannot transmit actual RF packets.  The corresponding miner would be *receive only*.  This is what'll nip ya if you don't set the "gateway_ID" to match your local_conf file settings on your gateway.  Ask me how I know.
-
-If you want transmit commands from a miner to actually be transmitted over LoRa the `"gateway_ID"` should match the MAC address for one of the physical gateways sending data to this software.
-
-This limitation can be removed with additional software to allow independently mapping miners to transmitting gateways.
-
-Note: all received packets from any gateway will be sent to ALL miners but transmit commands from a miner will be sent to at most one gateway.
-
-### Configuration files for gateways
-Each physical gateway should have a unique `gateway_ID`.  These don't have to match with any virtual gateway.  See limitations mentioned above for why you may want to match a virtual gateway MAC address.
-The `serv_port_up` and `serv_port_down` of each gateway should match the port you set with the `-p` or `--port` arguement when starting `gateways2miners.py`.
 
 
 ## How It Works
