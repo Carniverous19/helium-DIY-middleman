@@ -1,61 +1,40 @@
-# helium-DIY-middleman
+# Middleman for Helium
 Initially this was written by folks who know what they're doing.  I more or less don't, but guided by wizards I managed to muddle through.  You can do the same.
 
 Code here acts as a middleman between LoRa gateways running Semtech packet forwarders and servers ingesting packet forwarder data.
 
-I run it because I have antennas with higher than stock gain (6, 9, and 13 db), and currently (Dec 2020) Helium rules make it so many tx and rx are invalid with higher gain antennas.
+I run it because I have antennas with higher than stock gain (6, 9, and 13 db), and currently (Jan 2020) Helium rules make it so many tx and rx are invalid with higher gain antennas.
 
 ## Installation Instructions
 
 There are two ways to use this code. The first way is to run it manually, while
-the second way is to install it in the system and have it be run by `systemd`.  I have it run by systemd because it, at least, knows what it's doing.
-These options are described in detail in the following subsections.
+the second way is to install it in the system and have it be run by `systemd`.  If you want to run it manually, go back to Carniverous19's original code.    
 
-In both cases, however, you must first clone the repository.
+I have it run by systemd because that, at least, knows what it's doing.  
 
 ### Cloning
 
-Clone this repository.  Note daily, maybe breaking changes may be pushed to master at any time.  
-Some functional versions may be tagged and you may want to pull those
+Clone this repository onto the machine running your miner. 
 
     git clone https://github.com/curiousfokker/helium-DIY-middleman.git
  
  The only dependency is Python 3.7+ (developed and tested on 3.8.2)
     
-### Manual Startup
+### Installation and Startup
 
-To run the code manually, use the following command
-
-    python3 gateways2miners.py -p 1680 -c ./gateways
-    
-This will listen for messages from any gateway running the semtech packet forwarder on port 1680. 
-It will also create a virtual gateway that communicates with a miner based on all the configuration files located in `./gateways` 
-
-Run
-
-    python3 gateways2miners.py -h
-
-for additional info on parameters and their meaning
-
-### Permanent Installation and Startup
-
-For more reliable and permanent operation, you can also install middleman in
-its own working directory and have it started up by your system automatically
+Install Middleman in its own working directory on your miner and have it started up by your system automatically
 via `systemd`.  To do so, you must run
 
     sudo make install
 
 This will install the source code and other necessary items in a new directory,
-`/home/middleman`. If you wish to have middleman installed in a different
-directory, run this modified version of the installation command:
-
-    sudo make DESTROOT=/different/directory install
+`/home/middleman`. 
 
 #### Set Up
 
 There are several options that you may wish to change about middleman's startup
-behavior in a permanent installation. To make these eaiser to control without
-having to modify the source code, you'll need to create configs directory and then config.json file in home/middleman.
+behavior in a permanent installation. To make these easier to control without
+having to modify the source code, you'll need to create a Configs directory and then a config.json file in home/middleman.  
 
 #### Middleman Settings
 
@@ -77,35 +56,37 @@ Then copy/paste in this:
 }
 ```
 
-IMPORTANT:  If you've got a local.conf file in your packet forwarder (miner & gateway on same device, like a RAK7244), make sure the gateway_ID above matches what's in the packet forwarder. 
+IMPORTANT:  If you've got a local.conf file in your packet forwarder (miner & gateway on same device, like a RAK7244), make sure the gateway_ID above matches what's in the packet forwarder.   
 
-Next, make the middleman.conf file.  
-In /middleman
+Next, make the middleman.conf file in /middleman. 
 
-`sudo nano middleman.conf`
+`sudo nano middleman.conf`. 
 
 Then enter your arguments.  
-Example 1 (for a Nearson 9 db anteanna)  `middleman_args="--rx-adjust -9” `. 
-Example 2 (an antenna over 13 db) `middleman_args="--tx-adjust -4 --rx-adjust -13"`. 
+Example 1 (for a Nearson 9 db antenna where you'd want to drop the rx receipts by 9)  `middleman_args="--rx-adjust -9” `. 
+Example 2 (an antenna over 13 db where you need to drop the tx by 4 in order to not break FSPL and adjust the RX by 13 to keep within RSSI boundaries) `middleman_args="--tx-adjust -4 --rx-adjust -13"`. 
 
-Next we'll enable Middleman:
+Next we'll enable Middleman on the miner:
 
 `sudo systemctl enable middleman`. 
-and then reboot the miner.  You might not have to reboot.  I did it anyway.
+
+and then reboot the miner.  You might not have to reboot.  I did it anyway.  
 
 `sudo reboot`. 
 
-Now, over in the Gateway you're going to change the UDP port from the default (1680) to that of Middlema (1681).  This tells the gateway to talk to Middleman instead of the miner.  First, on your gateway check to see where your packet forwarder config file is.
+#### On the Gateway
+Now, on the gateway you're going to change the UDP port from the default (1680) to that of Middleman (1681).  This tells the gateway to talk to Middleman instead of the miner.  
+First, on your gateway check to see where your packet forwarder config file is.
 
 `ps -efww | grep lora_pkt`
 
 In my gateway the path is ` /sx1302_hal/bin/ `
 
-Once you're in the bin (or whatever directory you found the packet forwarder config file), then
+Once you're in the bin (or whatever directory you found the packet forwarder config file) make a backup copy of your global conf file, just in case.
 
 `cp global_conf.json global_conf.json.old`
 
-This makes a copy of your old global_conf settings in case you want to revert back to them.  With a backup made, nothing could possibly go wrong. It's time to change things up!
+With a backup made, nothing could possibly go wrong. It's time to change things up!
 
 `sudo nano global_conf.json`
 
@@ -126,8 +107,8 @@ In there (probably down at the bottom) look for this:
         "forward_crc_valid": true,
 ```
 
-Then change
-`serv_port_up: 1680` and `serv_port_down: 1680` from 1680 --> 1681.
+Then on the 4th & 5th line down, change:  
+`serv_port_up: 1680` and `serv_port_down: 1680` from 1680 --> 1681.  
 
 Now your gateway is pointing to Middleman (1681) instead of to your miner (1680).  
 
@@ -135,15 +116,17 @@ Reboot your gateway.
 
 `sudo reboot`
 
-then make sure you've restarted the lora_pkt_fwd.service with
+Make sure you've restarted the lora_pkt_fwd.service with:  
 
 `sudo systemctl restart lora_pkt_fwd.service`
 
-Now, back on your miner:
+Now that the gateway is directed to your miner, you'll need to start Middleman on the miner, so.  
 
-`sudo systemctl start middleman`
+#### Back on your Miner:
 
-Check your work with:
+`sudo systemctl start middleman`. 
+
+Check your work with:  
 
 `systemctl status middleman`
 
