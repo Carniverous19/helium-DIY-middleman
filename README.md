@@ -116,8 +116,8 @@ In there (probably down at the bottom) look for this:
         "gateway_ID": "AA555A0000000101",
         /* change with default server address/ports, or overwrite in local_conf.json */
         "server_address": "localhost",
-        "serv_port_up": 1681,
-        "serv_port_down": 1681,
+        "serv_port_up": 1680,
+        "serv_port_down": 1680,
         /* adjust the following parameters for your network */
         "keepalive_interval": 10,
         "stat_interval": 30,
