@@ -24,12 +24,11 @@ Clone this repository onto the machine running your miner.
     
 ### Installation and Startup
 
-On your miner, install Middleman in its own working directory.  
 You may need to get Make.
 
 `sudo apt-get install make`
 
-Now, let's do it.
+Now install Middleman in its own working directory. Go to /helium-DIY-middleman and
 
     sudo make install
 
@@ -37,16 +36,16 @@ This will install the source code and other necessary items in a new directory,
 `/home/middleman`. 
 
 
-#### Middleman Settings
+#### Middleman Settings (on the miner)
 
-In the directory /middleman (which was created with the git pull.)
+In the directory /middleman 
 
 * `sudo mkdir configs`. 
 This creates your configs directory.  Now change into that directory:  
 
 * `cd configs`
 and create the config file:  
-* `nano config.json`
+* `sudo nano config.json`
 
 Then copy/paste in this into the config.json:
 
@@ -59,7 +58,8 @@ Then copy/paste in this into the config.json:
          }
 }
 ``` 
-  
+CTRL-X to Exit, then "Y" to save and "Enter" to seal the deal.
+
 IMPORTANT:  Make sure the gateway_ID above matches what's in the packet forwarder's global_conf.json and, if it exists, local_conf.json. 
 
 Great, so now you've told Middleman where to "listen" when it comes to the miner.  
