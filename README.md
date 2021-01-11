@@ -24,7 +24,12 @@ Clone this repository onto the machine running your miner.
     
 ### Installation and Startup
 
-On your miner, install Middleman in its own working directory.    
+On your miner, install Middleman in its own working directory.  
+You may need to get Make.
+
+`sudo apt-get install make`
+
+Now, let's do it.
 
     sudo make install
 
