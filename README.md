@@ -70,7 +70,7 @@ Next, make the middleman.conf file in /middleman and tell it what to do with wha
 
 Then enter your arguments.  
 Example 1 (for a Nearson 9 db antenna where you'd want to drop the rx receipts by 9)  
-`middleman_args="--rx-adjust -9” `. 
+`middleman_args="--rx-adjust -9" `. 
   
 Example 2 (an antenna over 13 db where you need to drop the tx by 4 in order to not break FSPL and adjust the RX by 13 to keep within RSSI boundaries) `middleman_args="--tx-adjust -4 --rx-adjust -13"`. 
 
