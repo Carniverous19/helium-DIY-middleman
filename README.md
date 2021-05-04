@@ -49,7 +49,8 @@ and create the config file:
 
 Then copy/paste in this into the config.json:
 
-```{
+```
+{
         "gateway_conf": {
                 "gateway_ID": "AA555A0000000000",
                 "server_address": "localhost",
