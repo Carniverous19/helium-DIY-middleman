@@ -84,7 +84,7 @@ and then reboot the miner.  You might not have to reboot.  I did it anyway.
 `sudo reboot`. 
 
 #### On the Gateway
-Now, on the gateway you're going to change the UDP port from the default (1680) to that of Middleman (1681).  This tells the gateway to talk to Middleman instead of the miner.  
+Now, on the gateway you're going to change the UDP port from the default (1680) to that of Middleman (1681).  This tells the gateway to talk to Middleman instead of the miner.  You're also going to point your gateway to your miner.
 First, on your gateway check to see where your packet forwarder config file is.
 
 `ps -efww | grep lora_pkt`
@@ -115,7 +115,8 @@ In there (probably way down at the bottom) look for this:
         /* forward only valid packets */
         "forward_crc_valid": true,
 ```
-
+On the 3rd line, replace <localhost> with your miner IP address.
+    
 Then on the 4th & 5th line down, change the ports:  
 `serv_port_up: 1680` and `serv_port_down: 1680` from 1680 --> 1681.  
 
