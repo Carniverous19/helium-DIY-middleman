@@ -14,11 +14,13 @@ from src.vgateway import VirtualGateway
 
 
 class GW2Miner:
-    def __init__(self, port, vminer_configs_paths, keepalive_interval=10, stat_interval=30, debug=True):
+    def __init__(self, port, vminer_configs_paths, keepalive_interval=10, stat_interval=30, debug=True, tx_power_adjustment=0.0, rx_power_adjustment=0.0):
 
 
         self.vgw_logger = logging.getLogger('VGW')
         self.vminer_logger = logging.getLogger('VMiner')
+        self.tx_power_adjustment = tx_power_adjustment
+        self.rx_power_adjustment = rx_power_adjustment
 
         # load virtual gateways configs
         # =============================
@@ -47,7 +49,8 @@ class GW2Miner:
                         mac=mac,
                         server_address=server_ip,
                         port_dn=config.get('serv_port_down'),
-                        port_up=config.get('serv_port_up')
+                        port_up=config.get('serv_port_up'),
+                        rx_power_adjustment=rx_power_adjustment
                     )
                 self.vgateways_by_mac[mac] = vgw
 
@@ -133,16 +136,32 @@ class GW2Miner:
 
             key = self.__rxpk_key__(rxpk)
 
-            if 48 <= rxpk.get('size') <= 80 and rxpk.get('datr') in ['SF8BW125', 'SF9BW125']:
-                if key in self.rxpk_cache:
-                    self.vminer_logger.info(f"repeat chlng. from GW:{msg['MAC'][-8:]} [{rxpk.get('size')}B]: {key}; rssi:{rxpk['rssi']:.0f}, snr:{rxpk['lsnr']:.0f}")
-                    continue
-                self.vminer_logger.info(f"new    chlng. from GW:{msg['MAC'][-8:]} [{rxpk.get('size')}B]: {key}; rssi:{rxpk['rssi']:.0f}, snr:{rxpk['lsnr']:.0f}")
+            is_duplicate = key in self.rxpk_cache
+            description = f"from GW:{msg['MAC'][-8:]} [{rxpk.get('size')}B]: {key}; rssi:{rxpk['rssi']:.0f}dBm, snr:{rxpk['lsnr']:.0f}"
+
+            if packet_is_poc_challenge(rxpk):
+                log_level = 'info'
+                if is_duplicate:
+                    classification = 'repeat chlng.'
+                else:
+                    classification = 'new    chlng.'
             else:
-                if key in self.rxpk_cache:
-                    self.vminer_logger.debug(f"repeated packet  [{rxpk.get('size')}B, {rxpk.get('rssi')}dBm]: {key}")
-                    continue
-                self.vminer_logger.debug(f"new packet [{rxpk.get('size')}B, {rxpk.get('rssi')}dBm]: {key}")
+                log_level = 'debug'
+                if is_duplicate:
+                    classification = 'repeated packet'
+                else:
+                    classification = 'new packet'
+
+            if log_level == 'info':
+                log = self.vminer_logger.info
+            else:
+                log = self.vminer_logger.debug
+
+            log(f"{classification} {description}")
+
+            if is_duplicate:
+                continue
+
             self.rxpk_cache[key] = time.time()
             new_rxpks.append(rxpk)
 
@@ -177,6 +196,9 @@ class GW2Miner:
         if not dest_addr:
             self.vgw_logger.warning(f"PULL_RESP from {addr} has no matching real gateway, will only be received by Virtual Miners")
         txpk = msg['data'].get('txpk')
+
+        txpk = self.adjust_tx_power(txpk)
+
         rawmsg = messages.encode_message(msg)
         if dest_addr:
             self.sock.sendto(rawmsg, dest_addr)
@@ -255,8 +277,16 @@ class GW2Miner:
             data, addr = gw.get_PULL_DATA()
             self.sock.sendto(data, addr)
 
+    def adjust_tx_power(self, pk: dict):
+        pk['powe'] += self.tx_power_adjustment
+        return pk
+
     def __del__(self):
         self.sock.close()
+
+
+def packet_is_poc_challenge(rxpk: dict):
+    return rxpk.get('size') == 52 and rxpk.get('datr') == 'SF9BW125'
 
 
 def configure_logger(debug=False):
@@ -286,6 +316,8 @@ def main():
     parser.add_argument('-d', '--debug', action='store_true', help="print verbose debug messages")
     parser.add_argument('-k', '--keepalive', help='keep alive interval in seconds', default=10, type=int)
     parser.add_argument('-s', '--stat', help='stat interval in seconds', default=30, type=int)
+    parser.add_argument('-t', '--tx-adjust', help='adjust transmit power by some constant (in dB).', type=float, metavar='<adjustment-db>', default=0.0)
+    parser.add_argument('-r', '--rx-adjust', help='adjust reported receive power by some constant (in dB).', type=float, metavar='<adjustment-db>', default=0.0)
 
     args = parser.parse_args()
 
@@ -293,12 +325,15 @@ def main():
 
     logging.info(f"info log messages are enabled")
     logging.debug(f"debug log messages are enabled")
+    logging.debug(f"startup arguments: {args}")
+
     config_paths = []
     for f in os.listdir(args.configs):
         if os.path.isfile(os.path.join(args.configs, f)) and f[-4:].lower() == 'json':
             config_paths.append(os.path.join(args.configs, f))
 
-    gw2miner = GW2Miner(args.port, config_paths, args.keepalive, args.stat)
+    gw2miner = GW2Miner(args.port, config_paths, args.keepalive, args.stat,
+        args.debug, args.tx_adjust, args.rx_adjust)
     logging.info(f"starting Gateway2Miner")
     try:
         gw2miner.run()

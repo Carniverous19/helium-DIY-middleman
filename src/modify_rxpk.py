@@ -16,12 +16,13 @@ import datetime as dt
 
 
 class RXMetadataModification:
-    def __init__(self):
+    def __init__(self, rx_adjust):
         self.min_rssi = -120
         self.max_rssi = -90  # valid to 50 miles via FSPL filter
         self.max_snr = 1.9
         self.min_snr = -9.9
         self.tmst_offset = 0
+        self.rx_adjust = rx_adjust
         self.logger = logging.getLogger('RXMeta')
 
     def modify_rxpk(self, rxpk, src_mac=None, dest_mac=None):
@@ -32,11 +33,10 @@ class RXMetadataModification:
         """
 
         old_snr, old_rssi, old_ts = rxpk['lsnr'], rxpk['rssi'], rxpk['tmst']
-        # simple clipping low and high, could be a lot more sophisticated to add randomness or better mapping
-        if src_mac == dest_mac:
-            rxpk['rssi'] += 3  # boost RSSI for src gateway
-        else:
-            rxpk['rssi'] += random.randint(-2, 2)  # randomize rssi +/- 2dBm
+        
+        # Simple RSSI level adjustment
+        rxpk['rssi'] += self.rx_adjust
+    
         rxpk['lsnr'] = round(rxpk['lsnr'] + random.randint(-15, 10) * 0.1, 1)  # randomize snr +/- 1dB in 0.1dB increments
         # clip after adjustments to ensure result is still valid
         rxpk['rssi'] = min(self.max_rssi, max(self.min_rssi, rxpk['rssi']))

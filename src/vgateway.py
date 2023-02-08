@@ -12,7 +12,7 @@ else:
 
 
 class VirtualGateway:
-    def __init__(self, mac, server_address, port_up, port_dn):
+    def __init__(self, mac, server_address, port_up, port_dn, rx_power_adjustment):
         """
 
         :param mac:
@@ -34,7 +34,7 @@ class VirtualGateway:
 
 
         # payload modifier
-        self.rxmodifier = RXMetadataModification()
+        self.rxmodifier = RXMetadataModification(rx_power_adjustment)
 
         self.logger = logging.getLogger(f"VGW:{self.mac[-2:]}")
 
